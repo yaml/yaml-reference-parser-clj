@@ -1,0 +1,80 @@
+#!/usr/bin/env bb
+
+;; YAML Parser CLI for Clojure
+;; Parses YAML input and outputs events
+
+(require '[babashka.classpath :as cp]
+         '[babashka.fs :as fs])
+
+(let [script (System/getProperty "babashka.file")
+      root (fs/parent (fs/parent script))]
+  (cp/add-classpath (str (fs/path root "src")
+                         java.io.File/pathSeparator
+                         (fs/path root "test"))))
+
+(ns yaml-parser-cli
+  (:require [yaml-parser.parser :as p]
+            [yaml-parser.test-receiver :as tr]
+            [yaml-parser.grammar]
+            [clojure.string :as str]))
+
+(def events-only (atom false))
+
+(defn timer []
+  (System/nanoTime))
+
+(defn timer-elapsed [start]
+  (/ (- (System/nanoTime) start) 1e9))
+
+(defn main [yaml]
+  (let [receiver (tr/make-test-receiver)
+        parser (p/make-parser receiver)
+        pass (atom true)
+        start (timer)]
+
+    (try
+      (p/parse parser yaml)
+      (catch Exception e
+        (binding [*out* *err*]
+          (println (.getMessage e)))
+        (reset! pass false)))
+
+    (let [time (timer-elapsed start)
+          ;; Get the receiver - the atoms are shared between receiver and parser's copy
+          output (tr/output receiver)
+          display-yaml (if (re-find #"\n." yaml)
+                         (str "\n" yaml)
+                         (str/replace yaml #"\n$" "\\n"))]
+
+      (if @events-only
+        (do
+          (print output)
+          @pass)
+        (if @pass
+          (do
+            (println (str "PASS - '" display-yaml "'"))
+            (print output)
+            (println (format "Parse time %.5fs" time))
+            true)
+          (do
+            (println (str "FAIL - '" display-yaml "'"))
+            (print output)
+            (println (format "Parse time %.5fs" time))
+            false))))))
+
+(defn -main [& args]
+  (let [args (vec args)
+        [args yaml-arg] (if (and (seq args) (= (first args) "--events"))
+                          (do
+                            (reset! events-only true)
+                            [(rest args) nil])
+                          [args nil])
+        yaml (if (seq args)
+               (first args)
+               (slurp *in*))]
+    (if (main yaml)
+      (System/exit 0)
+      (System/exit 1))))
+
+(when (= *file* (System/getProperty "babashka.file"))
+  (apply -main *command-line-args*))

@@ -1,0 +1,520 @@
+#!/usr/bin/env ys-0
+
+defn main(*args):
+  opts =: parse-args(args)
+  when-not opts.from:
+    die: 'Usage: generate-yaml-grammar --from <spec.yaml>
+          [--rule <top-rule>] [--namespace <prefix>]'
+  spec-text =: read(opts.from)
+  say: gen-grammar(spec-text opts.rule opts.namespace)
+
+REP-COUNT =: atom(0)
+
+defn parse-args(args):
+  opts =: +{:rule 'l-yaml-stream', :namespace 'yaml-parser'}
+  parse-args-step: opts args
+
+defn parse-args-step(opts args):
+  if args.!:
+    then: opts
+    else:
+      arg =: args.0
+      more =: next(args)
+      from-opt =: (arg == '--from') || (arg == '-f')
+      rule-opt =: (arg == '--rule') || (arg == '-r')
+      namespace-opt =: (arg == '--namespace') || (arg == '-n')
+      cond:
+        from-opt:
+          parse-args-step: opts.assoc(:from more.0) next(more)
+        rule-opt:
+          parse-args-step: opts.assoc(:rule more.0) next(more)
+        namespace-opt:
+          parse-args-step: opts.assoc(:namespace more.0) next(more)
+        arg.starts?('--from='):
+          parse-args-step: opts.assoc(:from subs(arg 7)) more
+        arg.starts?('--rule='):
+          parse-args-step: opts.assoc(:rule subs(arg 7)) more
+        arg.starts?('--namespace='):
+          parse-args-step: opts.assoc(:namespace subs(arg 12)) more
+        else:
+          throw:
+            ex-info: +
+              "Unknown argument:\ $arg"
+              {:arg arg}
+
+defn gen-grammar(spec-text top ns-prefix):
+  spec =: yaml/load(spec-text)
+  comments =: get-comments(spec-text)
+  nums =: build-nums(spec)
+  rule-names =:
+    spec:keys.map(key-name).filter(\(_.starts?(':').!))
+  head =: gen-grammar-head(top:rule-name ns-prefix)
+  declarations =: rule-names.map(\("  $(rule-name(_))")):text:chomp
+  rules =: rule-names.map(\(gen-rule(spec nums comments _))):join
+  =>: |-
+    $head
+    (declare
+    $declarations)
+
+    $rules
+
+defn gen-grammar-head(top-name ns-prefix): |
+  ;; This grammar was generated from https://yaml.org/spec/1.2/spec.html
+
+  (ns $ns-prefix.grammar
+    (:refer-clojure :exclude [empty])
+    (:require [$ns-prefix.parser :as p]
+              [$ns-prefix.prelude
+               :refer [debug-rule name* from-code-point]]))
+
+  (declare $top-name)
+
+  ;; TOP returns the top-level grammar rule as a vector for call to process
+  (def TOP
+    (name* "TOP"
+      (fn TOP-fn [parser]
+        ;; Return the top rule as a value that call can process
+        [$top-name])
+      nil))
+
+  ;; Helper function for auto-detect
+  (defn auto_detect [parser n]
+    (p/auto-detect parser n))
+
+  (defn auto_detect_indent [parser n]
+    (p/auto-detect-indent parser n))
+
+  (defn empty [parser]
+    (p/empty-rule parser))
+
+defn gen-rule(spec nums comments name):
+  base-rule =: kget(spec name)
+  setm-rule =: setm-and-rule(base-rule)
+  setm =: setm-rule.0
+  rule =: setm-rule.1
+  rule :if map?(rule) =:
+    rule.kdissoc('(...)')
+  num-key =: nums.$name
+  num :if num-key =:
+    key-name(num-key).drop(1):join
+  comment =: comments.$num || ''
+  rule-name-str =: rule-name(name)
+  debug-args =: gen-debug-args(spec name)
+  rule-args =: gen-rule-args(spec name)
+  args =: rule-args-list(spec name)
+  ctx =: new-ctx().assoc(
+    :num num
+    :setm setm
+    :args args)
+  rule-body =: indent(gen(ctx rule))
+  setm-close =: gen-setm-close(setm)
+  str: |+
+    ${comment}(def $rule-name-str
+      (name* "$rule-name-str"
+        (fn ${rule-name-str}-fn $rule-args$setm
+          (debug-rule "$rule-name-str"$debug-args)
+      $rule-body$setm-close)
+        nil))
+
+defn setm-and-rule(rule):
+  cond:
+    map?(rule) && kget(rule '(->m)'):
+      +[gen-setm(false) kdissoc(rule '(->m)')]
+    map?(rule) && kget(rule '(m>0)'):
+      +[gen-setm(true) kdissoc(rule '(m>0)')]
+    else:
+      +['' rule]
+
+defn gen-setm-close(setm):
+  cond:
+    has-text?(setm 'pos? m'): ")\n      false))"
+    has-text?(setm 'if-let'): ")\n      false)"
+    has-text?(setm 'let [m'): ')'
+    else: ''
+
+defn gen-rule-args(spec name):
+  rule =: kget(spec name)
+  if-not map?(rule):
+    then: '[parser]'
+    else:
+      args =: kget(rule '(...)')
+      if args:
+        then:
+          args =: listify(args)
+          joined =: args:joins
+          =>: "[parser $joined]"
+        else: '[parser]'
+
+defn gen-debug-args(spec name):
+  rule =: kget(spec name)
+  if-not map?(rule):
+    then: ''
+    else:
+      args =: kget(rule '(...)')
+      if args:
+        then:
+          args =: listify(args)
+          =>: ", $(args.join(', '))"
+        else: ''
+
+defn rule-args-list(spec name):
+  rule =: kget(spec name)
+  if map?(rule):
+    then:
+      args =: kget(rule '(...)')
+      if args:
+        listify(args)
+        +[]
+    else: +[]
+
+defn gen-setm(return-false):
+  if return-false:
+    then: |2-
+
+        ;; m must be > 0 (JS treats 0 as falsy, Clojure doesn't)
+        (let [m (p/call parser [auto_detect_indent, n] "number")]
+          (if (and m (pos? m))
+          (do
+    else: |2-
+
+        (let [m (p/call parser [auto_detect_indent, n] "number")]
+
+defn gen(ctx rule):
+  cond:
+    map?(rule): gen-from-hash(ctx rule)
+    sequential?(rule): gen-from-array(ctx rule)
+    string?(rule): gen-from-string(ctx rule)
+    number?(rule): rule:S
+    nil?(rule): gen-null()
+    else:
+      throw-rule-error(ctx 'unknown rule type' +{:rule rule})
+
+defn gen-from-hash(ctx rule):
+  set-expr =: kget(rule '(set)')
+  keys =: rule:keys
+  when (keys.# > 1) && nil?(set-expr):
+    when-not kget(rule '(...)') || kget(rule '(->m)') || kget(rule '(m>0)'):
+      throw-rule-error(ctx 'unknown keys' +{:keys keys})
+  key =: keys.0
+  key-str =: key-name(key)
+  val =: rule.$key
+  cond:
+    re-matches(/^\(\{(.)\}\)$/ key-str):
+      n =: re-matches(/^\(\{(.)\}\)$/ key-str).1
+      gen-rep: ctx val n n
+    re-matches(/^(([bcls]|n[bs]|in|seq)[-+][-+a-z0-9]+)$/ key-str):
+      gen-call: ctx key-str val
+    key-str == 'auto-detect': gen-call(ctx key-str val)
+    key-str == '(any)': gen-group(ctx val 'any')
+    key-str == '(all)': gen-group(ctx val 'all')
+    key-str == '(---)': gen-group(ctx val 'but')
+    key-str == '(+++)': gen-rep(ctx val 1 nil)
+    key-str == '(***)': gen-rep(ctx val 0 nil)
+    key-str == '(???)': gen-rep(ctx val 0 1)
+    key-str == '(<<<)': gen-may(ctx val)
+    key-str == '(===)': gen-chk(ctx val '=')
+    key-str == '(!==)': gen-chk(ctx val '!')
+    key-str == '(<==)': gen-chk(ctx val '<=')
+    key-str == '(+)': gen-add(ctx val)
+    key-str == '(-)': gen-sub(ctx val)
+    key-str == '(<)': gen-lt(ctx val)
+    key-str == '(<=)': gen-le(ctx val)
+    key-str == '(case)': gen-case(ctx val)
+    key-str == '(flip)': gen-flip(ctx val)
+    key-str == '(max)': gen-max(ctx val)
+    key-str == '(if)': gen-if(ctx val set-expr)
+    key-str == '(set)': gen-set(ctx val)
+    key-str == '(ord)': gen-ord(ctx val)
+    key-str == '(len)': gen-len(ctx val)
+    key-str == '(exclude)': gen-exclude(ctx val)
+    else:
+      throw-rule-error(ctx 'unknown hash rule' +{:rule rule, :key key-str})
+
+defn gen-from-array(ctx rule):
+  if (rule.# == 2) && string?(rule.0) && rule.0.starts?('x'):
+    then:
+      gen-method-call:
+        ctx
+        'rng'
+        gen-hex-code(rule.0.drop(1):join)
+        gen-hex-code(rule.1.drop(1):join)
+    else:
+      throw-rule-error: ctx 'Unknown array rule type' +{:rule rule}
+
+defn gen-from-string(ctx rule):
+  hex-match =: re-matches(/^x([0-9A-F]+)$/ rule)
+  angle-match =: re-matches(/^<(\w.+)>$/ rule)
+  context-values =:: [auto-detect, strip, clip, keep]
+  context-value =:
+    re-matches(/^(flow|block)-(in|out|key)$/ rule) ||
+    contains?(set(context-values) rule)
+  cond:
+    hex-match:
+      gen-method-call: ctx 'chr' gen-hex-code(hex-match.1)
+    re-matches(/^(?:b|c|e|l|nb|ns|s)(?:[-+][a-z0-9]+)+$/ rule):
+      gen-method-ref: rule-name(rule)
+    rule.# == 1:
+      gen-single-char: ctx rule
+    context-value:
+      "\"$rule\""
+    angle-match:
+      gen-method-ref: rule-name(angle-match.1)
+    rule == '(match)':
+      '(p/match parser)'
+    else:
+      throw-rule-error: ctx 'Unknown string rule type' +{:rule rule}
+
+defn gen-single-char(ctx rule):
+  method-names =:: [m, t]
+  implicit-method =:
+    contains?(set(method-names) rule) &&
+    contains?(set(ctx.args) rule).! &&
+    ctx.setm.!
+  cond:
+    rule == "'": gen-method-call(ctx 'chr' "\"'\"")
+    rule == "\\": gen-method-call(ctx 'chr' '"\\"')
+    rule == '"': gen-method-call(ctx 'chr' '"\""')
+    rule == '{': gen-method-call(ctx 'chr' '"\u007B"')
+    rule == '}': gen-method-call(ctx 'chr' '"\u007D"')
+    rule == '#': gen-method-call(ctx 'chr' '"\u0023"')
+    rule == '@': gen-method-call(ctx 'chr' '"\u0040"')
+    rule == '`': gen-method-call(ctx 'chr' '"\u0060"')
+    ctx.arg:
+      if implicit-method:
+        then: gen-method-call(ctx rule)
+        else: gen-var-value(rule)
+    else:
+      gen-method-call: ctx 'chr' "\"$rule\""
+
+defn gen-group(ctx items kind):
+  group-ctx =:
+    ctx.assoc(:group true :rep-count atom(0))
+  generated =: items.map(\(gen(group-ctx _)))
+  gen-method-call: group-ctx kind generated*
+
+defn gen-rep(ctx rule min max):
+  rep-num =: swap(ctx.rep-count inc)
+  rep-fn =:
+    if rep-num > 1:
+      then: 'rep2'
+      else: 'rep'
+  rep =:
+    gen-method-call(ctx rep-fn gen-limit(min) gen-limit(max) gen(ctx rule))
+  rep: .replace(/\(\n  (-?\d+),\n  (nil|-?\d+),/ '($1, $2,')
+    .replace(/\)\n\)/ '))')
+
+defn gen-call(ctx call args):
+  args =: listify(args)
+  list-str =: args.map(\(gen-arg(ctx _))).join(', ')
+  ref =: gen-method-ref(rule-name(call))
+  =>: "[$ref, $list-str]"
+
+defn gen-may(ctx rule):
+  gen-method-call: ctx 'may' gen(ctx rule)
+
+defn gen-chk(ctx rule kind):
+  gen-method-call: ctx 'chk' "\"$kind\"" gen(ctx rule)
+
+defn gen-case(ctx obj):
+  var-name =: kget(obj 'var')
+  obj =: kdissoc(obj 'var')
+  gen-method-call: ctx 'case*' gen-var-value(var-name) gen-hash(ctx obj)
+
+defn gen-flip(ctx obj):
+  var-name =: kget(obj 'var')
+  obj =: kdissoc(obj 'var')
+  pairs =: obj.map(\(gen-flip-pair(_))):join
+  hash-str =:
+    str:
+      =>: '{'
+      =>: pairs
+      =>: "\n}"
+  gen-method-call: ctx 'flip' gen-var-value(var-name) hash-str
+
+defn gen-flip-pair([k v]):
+  key-str =: key-name(k)
+  =>: "\n  \"$key-str\"$gen-pair-sep()$gen-arg(new-ctx() v),"
+
+defn gen-hash(ctx obj):
+  pairs =: obj.map(\(gen-hash-pair(ctx _))):join
+  =>: "{$pairs\n}"
+
+defn gen-hash-pair(ctx [k v]):
+  rule =: gen(ctx v)
+    .replace(/\s+/ ' ')
+    .replace(/,\ \)/ ' )')
+  key-str =: key-name(k)
+  =>: "\n  \"$key-str\"$gen-pair-sep()$rule,"
+
+defn gen-max(ctx max-val):
+  gen-method-call: ctx 'max*' max-val
+
+defn gen-if(ctx cond-expr set-expr):
+  gen-method-call: ctx 'if*' gen(ctx cond-expr) gen-set(ctx set-expr)
+
+defn gen-set(ctx [vari expr]):
+  gen-method-call: ctx 'set*' "\"$vari\"" gen(ctx expr)
+
+defn gen-ord(ctx expr):
+  gen-method-call: ctx 'ord' gen(ctx expr)
+
+defn gen-len(ctx expr):
+  gen-method-call: ctx 'len' gen(ctx expr)
+
+defn gen-exclude(ctx rule):
+  gen-method-call: ctx 'exclude' gen(ctx rule)
+
+defn gen-add(ctx [x y]):
+  gen-method-call: ctx 'add' gen(ctx x) gen(ctx y)
+
+defn gen-sub(ctx [x y]):
+  gen-method-call: ctx 'sub' gen(ctx x) gen(ctx y)
+
+defn gen-lt(ctx [x y]):
+  gen-method-call: ctx 'lt' gen-arg(ctx x) gen-arg(ctx y)
+
+defn gen-le(ctx [x y]):
+  gen-method-call: ctx 'le' gen-arg(ctx x) gen-arg(ctx y)
+
+defn gen-arg(ctx arg):
+  gen: ctx.assoc(:arg true) arg
+
+defn gen-method-call(ctx method *args):
+  result =: gen-method-call-args(ctx args)
+  args-str =: result.0
+  sep =: result.1
+  str:
+    =>: "(p/$method parser"
+    when args-str:seq: "$sep $args-str"
+    when sep == "\n": "\n"
+    =>: ')'
+
+defn gen-method-call-args(ctx args):
+  multiline =:
+    ctx.group ||
+    some(\(string?(_) && has-text?(_ "\n")) args)
+  if multiline: +
+    [args.map(\(indent(string-val(_)))).join(",\n") "\n"]
+    [args.map(string-val).join(', ') '']
+
+defn gen-method-ref(name):
+  parser-fns =:: [start_of_line, end_of_stream]
+  cond:
+    name == 'auto_detect_indent': "[$name, n]"
+    contains?(set(parser-fns) name):
+      "(p/$(name.replace('_' '-')) parser)"
+    else: name
+
+defn gen-hex-code(hex):
+  code-point =: Long/parseLong(hex 16)
+  if code-point > 0xFFFF:
+    then: "(from-code-point 0x$hex)"
+    else:
+      padded =:
+        if hex.# < 4:
+          then: str(repeat((4 - hex.#) '0'):join hex)
+          else: hex
+      str: |-
+        "\u$padded"
+
+defn gen-null(): 'nil'
+
+defn gen-pair-sep(): ' '
+
+defn gen-var-value(var-name): var-name
+
+defn gen-limit(n):
+  cond:
+    number?(n): n
+    nil?(n): 'nil'
+    else: n
+
+defn get-comments(spec-text):
+  lines =: spec-text.split("\n")
+  init-map =: +{}
+  init =: +[init-map nil nil]
+  state =:
+    reduce:
+      add-comment-line
+      init
+      lines
+  first: state
+
+defn add-comment-line([comments current-num current-comment] line):
+  num-match =: re-matches(/^:(\d+):.*/ line)
+  cond:
+    num-match:
+      num =: num-match.1
+      comments =:
+        if current-num:
+          then: comments.assoc(current-num current-comment)
+          else: comments
+      =>: +[comments num ";; [$num]\n"]
+    current-num && line.starts?('# '):
+      comment-text =: line.drop(2):join.replace("\\" "\\\\")
+      =>: +[comments current-num "${current-comment};; $comment-text\n"]
+    current-num:
+      comments =: comments.assoc(current-num current-comment)
+      =>: +[comments nil nil]
+    else:
+      =>: +[comments nil nil]
+
+defn build-nums(spec):
+  init =: +{}
+  reduce:
+    build-num
+    init
+    spec
+
+defn build-num(acc [k v]):
+  if key-name(k).starts?(':'):
+    then: acc.assoc(v k)
+    else: acc
+
+defn rule-name(name):
+  name: .replace(/[-+]/ '_')
+
+defn indent(text n=1):
+  prefix =: (n * 2) * ' '
+  text: .replace(/(?m)^(.)/ "${prefix}$1")
+
+defn string-val(o):
+  if nil?(o):
+    then: 'nil'
+    else: o:S
+
+defn key-name(k):
+  if keyword?(k):
+    then: name(k)
+    else: k:S
+
+defn kget(m k):
+  m.$k || m.get(k:K)
+
+defn has-text?(s part):
+  not(nil?(index(s part)))
+
+defn kdissoc(m *ks):
+  all-ks =: ks + ks.map(K)
+  dissoc: m all-ks*
+
+defn listify(x):
+  if sequential?(x):
+    then: x
+    else: +[x]
+
+defn new-ctx():
+  args =: +[]
+  ctx =: +{}
+  ctx =: ctx.assoc(:num nil)
+  ctx =: ctx.assoc(:arg false)
+  ctx =: ctx.assoc(:group false)
+  ctx =: ctx.assoc(:args args)
+  ctx =: ctx.assoc(:setm '')
+  ctx: .assoc(:rep-count REP-COUNT)
+
+defn throw-rule-error(ctx message data):
+  throw:
+    ex-info:
+      =>: "[$(ctx.num)] $message"
+      =>: data
