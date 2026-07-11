@@ -36,15 +36,13 @@
     "ns_flow_content" "c_flow_json_content" "ns_flow_yaml_content"
     "ns_plain" "c_single_quoted" "c_double_quoted"})
 
+;; Parse state frame. :node is the frame's precomputed receiver
+;; dispatch node (see build-cb-roots/frame-node).
+(defrecord StateFrame [name node doc lvl beg end m t])
+
 ;; Default state when stack is empty
 (def default-state
-  {:name nil
-   :doc false
-   :lvl 0
-   :beg 0
-   :end nil
-   :m nil
-   :t nil})
+  (->StateFrame nil nil false 0 0 nil nil nil))
 
 ;; Parser state - uses volatiles for mutable state
 (defn make-parser [receiver]
@@ -54,6 +52,7 @@
                 :end (volatile! 0)
                 :state (volatile! [])
                 :memo (volatile! {})
+                :cb-roots (volatile! {})
                 :trace-num (volatile! 0)
                 :trace-line (volatile! 0)
                 :trace-on (volatile! true)
@@ -75,60 +74,10 @@
     (when (>= (count state) 2)
       (nth state (- (count state) 2)))))
 
-(defn state-push
-  ([parser name] (state-push parser name false))
-  ([parser name doc]
-   (let [curr (state-curr parser)]
-     (vswap! (:state parser) conj
-            {:name name
-             :doc (if doc true (:doc curr))
-             :lvl (inc (:lvl curr))
-             :beg @(:pos parser)
-             :end nil
-             :m (:m curr)
-             :t (:t curr)}))))
-
-(defn state-pop [parser]
-  (let [child (peek @(:state parser))]
-    (vswap! (:state parser) pop)
-    (let [curr-state @(:state parser)]
-      (when (seq curr-state)
-        (vswap! (:state parser)
-               (fn [s]
-                 (let [curr (peek s)]
-                   (conj (pop s)
-                         (assoc curr
-                                :beg (:beg child)
-                                :end @(:pos parser))))))))))
-
-;; Receiver callback routing
-(defn make-receivers [parser]
-  (let [state @(:state parser)
-        names (volatile! [])
-        i (volatile! (count state))]
-    (while (and (> @i 0)
-                (let [n (:name (nth state (dec @i)))]
-                  (not (str/includes? (str n) "_"))))
-      (vswap! i dec)
-      (let [n (:name (nth state @i))]
-        (let [n (if-let [[_ c] (re-matches #"chr\((.)\)" (str n))]
-                  (str "x" (hex-char c))
-                  (str/replace (str n) #"\(.*" ""))]
-          (vswap! names #(cons n %)))))
-    ;; Decrement i to get actual index (i was count, need count-1)
-    (vswap! i dec)
-    (if (or (neg? @i) (empty? state))
-      {:try nil :got nil :not nil}
-      (let [n (:name (nth state @i))
-            name (str/join "__" (cons n @names))
-            receiver @(:receiver parser)]
-        {:try (get-in receiver [:callbacks (str "try__" name)])
-         :got (get-in receiver [:callbacks (str "got__" name)])
-         :not (get-in receiver [:callbacks (str "not__" name)])}))))
-
 ;; Set of anchor rule names that have receiver callbacks.
-;; Used for early-exit in receive to avoid expensive make-receivers
-;; for the ~85% of calls where no callback will match.
+;; Frames of rules outside this set carry a nil dispatch node, so
+;; receive exits with a single map lookup for the ~85% of calls
+;; where no callback can match.
 (def ^:private callback-rules
   #{"l_yaml_stream" "ns_yaml_version" "c_tag_handle" "ns_tag_prefix"
     "c_directives_end" "c_document_end" "c_flow_mapping" "c_flow_sequence"
@@ -141,30 +90,81 @@
     "s_l_block_collection" "c_ns_anchor_property" "c_ns_tag_property"
     "c_ns_alias_node"})
 
+;; Receiver callback routing. Dispatch is resolved once per state
+;; frame at push time: a frame whose rule name contains "_" is an
+;; anchor and gets its node from cb-roots (nil unless the rule is in
+;; callback-rules); a combinator frame extends its parent's node,
+;; caching the resolved child per distinct chain in :kids. The chain
+;; name matches the old scan-and-mangle scheme: anchor name joined
+;; with the paren-stripped (or chr->hex) frame names above it.
+(defn- build-cb-roots [receiver]
+  (let [callbacks (:callbacks receiver)]
+    (reduce (fn [acc name]
+              (assoc acc name
+                     {:chain name
+                      :cbs {:try (get callbacks (str "try__" name))
+                            :got (get callbacks (str "got__" name))
+                            :not (get callbacks (str "not__" name))}
+                      :kids (volatile! {})}))
+            {}
+            callback-rules)))
+
+(defn- frame-node [parser parent-node name]
+  (if (str/includes? name "_")
+    (get @(:cb-roots parser) name)
+    (when parent-node
+      (or (get @(:kids parent-node) name)
+          (let [mangled (if-let [[_ c] (re-matches #"chr\((.)\)" name)]
+                          (str "x" (hex-char c))
+                          (str/replace name #"\(.*" ""))
+                chain (str (:chain parent-node) "__" mangled)
+                callbacks (:callbacks @(:receiver parser))
+                node {:chain chain
+                      :cbs {:try (get callbacks (str "try__" chain))
+                            :got (get callbacks (str "got__" chain))
+                            :not (get callbacks (str "not__" chain))}
+                      :kids (volatile! {})}]
+            (vswap! (:kids parent-node) assoc name node)
+            node)))))
+
+(defn state-push
+  ([parser name] (state-push parser name false))
+  ([parser name doc]
+   (let [curr (state-curr parser)]
+     (vswap! (:state parser) conj
+             (->StateFrame name
+                           (frame-node parser (:node curr) name)
+                           (if doc true (:doc curr))
+                           (inc (:lvl curr))
+                           @(:pos parser)
+                           nil
+                           (:m curr)
+                           (:t curr))))))
+
+(defn state-pop [parser]
+  (let [state @(:state parser)
+        child (peek state)
+        parents (pop state)]
+    (vreset! (:state parser)
+             (if (seq parents)
+               (let [curr (peek parents)]
+                 (conj (pop parents)
+                       (assoc curr
+                              :beg (:beg child)
+                              :end @(:pos parser))))
+               parents))))
+
 (defn receive [parser func type pos]
-  ;; Early exit: find the anchor rule name (first name with _)
-  ;; and check if it has any callbacks.
-  (let [state @(:state parser)]
-    (when (seq state)
-      (let [anchor-name (loop [i (dec (count state))]
-                          (when (>= i 0)
-                            (let [n (:name (nth state i))]
-                              (if (and n (str/includes? (str n) "_"))
-                                (str n)
-                                (recur (dec i))))))]
-        (when (and anchor-name (callback-rules anchor-name))
-          (let [receivers (make-receivers parser)
-                receiver-fn (get receivers type)]
-            (when receiver-fn
-              (let [curr-pos @(:pos parser)
-                    input @(:input parser)
-                    text (if (<= pos curr-pos)
-                           (subs input pos curr-pos)
-                           "")]
-                (receiver-fn @(:receiver parser)
-                             {:text text
-                              :state (state-curr parser)
-                              :start pos})))))))))
+  (when-let [receiver-fn (get (:cbs (:node (state-curr parser))) type)]
+    (let [curr-pos @(:pos parser)
+          input @(:input parser)
+          text (if (<= pos curr-pos)
+                 (subs input pos curr-pos)
+                 "")]
+      (receiver-fn @(:receiver parser)
+                   {:text text
+                    :state (state-curr parser)
+                    :start pos}))))
 
 ;; Memoization support. A memo record stores the parse outcome of a
 ;; whitelisted rule at a position: {:value :end-pos :events :entry-vols
@@ -805,6 +805,7 @@
     (vreset! (:pos parser) 0)
     (vreset! (:state parser) [])
     (vreset! (:memo parser) {})
+    (vreset! (:cb-roots parser) (build-cb-roots @(:receiver parser)))
 
     (when TRACE
       (vreset! (:trace-on parser) (not (trace-start parser))))
