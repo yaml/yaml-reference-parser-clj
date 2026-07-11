@@ -1,7 +1,7 @@
 R := https://github.com/makeplus/makes
 M := .cache/makes
 $(shell [ -d '$M' ] || git clone -q $R '$M')
-YAMLSCRIPT-VERSION := 0.2.20
+YAMLSCRIPT-VERSION := 0.2.24
 include $M/init.mk
 include $M/babashka.mk
 include $M/clojure.mk
@@ -28,7 +28,7 @@ MAKES-REALCLEAN := \
 
 grammar: $(YAML-GRAMMAR-CLJ)
 
-$(YAML-GRAMMAR-CLJ): $(YAML-GRAMMAR-YAML) $(YS)
+$(YAML-GRAMMAR-CLJ): $(YAML-GRAMMAR-YAML) util/generate-yaml-grammar $(YS)
 	util/generate-yaml-grammar \
 	  --from $< \
 	  --namespace yaml-parser > $@

@@ -4,7 +4,7 @@
   (:refer-clojure :exclude [empty])
   (:require [yaml-parser.parser :as p]
             [yaml-parser.prelude
-             :refer [debug-rule name* from-code-point]]))
+             :refer [debug-rule name* from-code-point DEBUG]]))
 
 (declare l_yaml_stream)
 
@@ -245,9 +245,8 @@
 ;;   | x:85 | [x:A0-x:D7FF] | [x:E000-x:FFFD]
 ;;   | [x:10000-x:10FFFF]
 (def c_printable
-  (name* "c_printable"
-    (fn c_printable-fn [parser]
-      (debug-rule "c_printable")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      (p/chr parser
        "\u0009"
@@ -277,16 +276,18 @@
        (from-code-point 0x010000),
       (from-code-point 0x10FFFF)
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_printable"
+      (fn c_printable-fn [parser]
+        (when DEBUG (debug-rule "c_printable"))
+        @body)
+      nil)))
 ;; [002]
 ;; nb-json ::=
 ;;   x:9 | [x:20-x:10FFFF]
 (def nb_json
-  (name* "nb_json"
-    (fn nb_json-fn [parser]
-      (debug-rule "nb_json")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      (p/chr parser
        "\u0009"
@@ -295,196 +296,234 @@
        "\u0020",
       (from-code-point 0x10FFFF)
     )
-  ))
-    nil))
-
+  )))]
+    (name* "nb_json"
+      (fn nb_json-fn [parser]
+        (when DEBUG (debug-rule "nb_json"))
+        @body)
+      nil)))
 ;; [003]
 ;; c-byte-order-mark ::=
 ;;   x:FEFF
 (def c_byte_order_mark
-  (name* "c_byte_order_mark"
-    (fn c_byte_order_mark-fn [parser]
-      (debug-rule "c_byte_order_mark")
-    (p/chr parser "\uFEFF"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "\uFEFF")))]
+    (name* "c_byte_order_mark"
+      (fn c_byte_order_mark-fn [parser]
+        (when DEBUG (debug-rule "c_byte_order_mark"))
+        @body)
+      nil)))
 ;; [004]
 ;; c-sequence-entry ::=
 ;;   '-'
 (def c_sequence_entry
-  (name* "c_sequence_entry"
-    (fn c_sequence_entry-fn [parser]
-      (debug-rule "c_sequence_entry")
-    (p/chr parser "-"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "-")))]
+    (name* "c_sequence_entry"
+      (fn c_sequence_entry-fn [parser]
+        (when DEBUG (debug-rule "c_sequence_entry"))
+        @body)
+      nil)))
 ;; [005]
 ;; c-mapping-key ::=
 ;;   '?'
 (def c_mapping_key
-  (name* "c_mapping_key"
-    (fn c_mapping_key-fn [parser]
-      (debug-rule "c_mapping_key")
-    (p/chr parser "?"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "?")))]
+    (name* "c_mapping_key"
+      (fn c_mapping_key-fn [parser]
+        (when DEBUG (debug-rule "c_mapping_key"))
+        @body)
+      nil)))
 ;; [006]
 ;; c-mapping-value ::=
 ;;   ':'
 (def c_mapping_value
-  (name* "c_mapping_value"
-    (fn c_mapping_value-fn [parser]
-      (debug-rule "c_mapping_value")
-    (p/chr parser ":"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser ":")))]
+    (name* "c_mapping_value"
+      (fn c_mapping_value-fn [parser]
+        (when DEBUG (debug-rule "c_mapping_value"))
+        @body)
+      nil)))
 ;; [007]
 ;; c-collect-entry ::=
 ;;   ','
 (def c_collect_entry
-  (name* "c_collect_entry"
-    (fn c_collect_entry-fn [parser]
-      (debug-rule "c_collect_entry")
-    (p/chr parser ","))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser ",")))]
+    (name* "c_collect_entry"
+      (fn c_collect_entry-fn [parser]
+        (when DEBUG (debug-rule "c_collect_entry"))
+        @body)
+      nil)))
 ;; [008]
 ;; c-sequence-start ::=
 ;;   '['
 (def c_sequence_start
-  (name* "c_sequence_start"
-    (fn c_sequence_start-fn [parser]
-      (debug-rule "c_sequence_start")
-    (p/chr parser "["))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "[")))]
+    (name* "c_sequence_start"
+      (fn c_sequence_start-fn [parser]
+        (when DEBUG (debug-rule "c_sequence_start"))
+        @body)
+      nil)))
 ;; [009]
 ;; c-sequence-end ::=
 ;;   ']'
 (def c_sequence_end
-  (name* "c_sequence_end"
-    (fn c_sequence_end-fn [parser]
-      (debug-rule "c_sequence_end")
-    (p/chr parser "]"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "]")))]
+    (name* "c_sequence_end"
+      (fn c_sequence_end-fn [parser]
+        (when DEBUG (debug-rule "c_sequence_end"))
+        @body)
+      nil)))
 ;; [010]
 ;; c-mapping-start ::=
 ;;   '{'
 (def c_mapping_start
-  (name* "c_mapping_start"
-    (fn c_mapping_start-fn [parser]
-      (debug-rule "c_mapping_start")
-    (p/chr parser "\u007B"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "\u007B")))]
+    (name* "c_mapping_start"
+      (fn c_mapping_start-fn [parser]
+        (when DEBUG (debug-rule "c_mapping_start"))
+        @body)
+      nil)))
 ;; [011]
 ;; c-mapping-end ::=
 ;;   '}'
 (def c_mapping_end
-  (name* "c_mapping_end"
-    (fn c_mapping_end-fn [parser]
-      (debug-rule "c_mapping_end")
-    (p/chr parser "\u007D"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "\u007D")))]
+    (name* "c_mapping_end"
+      (fn c_mapping_end-fn [parser]
+        (when DEBUG (debug-rule "c_mapping_end"))
+        @body)
+      nil)))
 ;; [012]
 ;; c-comment ::=
 ;;   '#'
 (def c_comment
-  (name* "c_comment"
-    (fn c_comment-fn [parser]
-      (debug-rule "c_comment")
-    (p/chr parser "\u0023"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "\u0023")))]
+    (name* "c_comment"
+      (fn c_comment-fn [parser]
+        (when DEBUG (debug-rule "c_comment"))
+        @body)
+      nil)))
 ;; [013]
 ;; c-anchor ::=
 ;;   '&'
 (def c_anchor
-  (name* "c_anchor"
-    (fn c_anchor-fn [parser]
-      (debug-rule "c_anchor")
-    (p/chr parser "&"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "&")))]
+    (name* "c_anchor"
+      (fn c_anchor-fn [parser]
+        (when DEBUG (debug-rule "c_anchor"))
+        @body)
+      nil)))
 ;; [014]
 ;; c-alias ::=
 ;;   '*'
 (def c_alias
-  (name* "c_alias"
-    (fn c_alias-fn [parser]
-      (debug-rule "c_alias")
-    (p/chr parser "*"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "*")))]
+    (name* "c_alias"
+      (fn c_alias-fn [parser]
+        (when DEBUG (debug-rule "c_alias"))
+        @body)
+      nil)))
 ;; [015]
 ;; c-tag ::=
 ;;   '!'
 (def c_tag
-  (name* "c_tag"
-    (fn c_tag-fn [parser]
-      (debug-rule "c_tag")
-    (p/chr parser "!"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "!")))]
+    (name* "c_tag"
+      (fn c_tag-fn [parser]
+        (when DEBUG (debug-rule "c_tag"))
+        @body)
+      nil)))
 ;; [016]
 ;; c-literal ::=
 ;;   '|'
 (def c_literal
-  (name* "c_literal"
-    (fn c_literal-fn [parser]
-      (debug-rule "c_literal")
-    (p/chr parser "|"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "|")))]
+    (name* "c_literal"
+      (fn c_literal-fn [parser]
+        (when DEBUG (debug-rule "c_literal"))
+        @body)
+      nil)))
 ;; [017]
 ;; c-folded ::=
 ;;   '>'
 (def c_folded
-  (name* "c_folded"
-    (fn c_folded-fn [parser]
-      (debug-rule "c_folded")
-    (p/chr parser ">"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser ">")))]
+    (name* "c_folded"
+      (fn c_folded-fn [parser]
+        (when DEBUG (debug-rule "c_folded"))
+        @body)
+      nil)))
 ;; [018]
 ;; c-single-quote ::=
 ;;   '''
 (def c_single_quote
-  (name* "c_single_quote"
-    (fn c_single_quote-fn [parser]
-      (debug-rule "c_single_quote")
-    (p/chr parser "'"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "'")))]
+    (name* "c_single_quote"
+      (fn c_single_quote-fn [parser]
+        (when DEBUG (debug-rule "c_single_quote"))
+        @body)
+      nil)))
 ;; [019]
 ;; c-double-quote ::=
 ;;   '"'
 (def c_double_quote
-  (name* "c_double_quote"
-    (fn c_double_quote-fn [parser]
-      (debug-rule "c_double_quote")
-    (p/chr parser "\""))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "\"")))]
+    (name* "c_double_quote"
+      (fn c_double_quote-fn [parser]
+        (when DEBUG (debug-rule "c_double_quote"))
+        @body)
+      nil)))
 ;; [020]
 ;; c-directive ::=
 ;;   '%'
 (def c_directive
-  (name* "c_directive"
-    (fn c_directive-fn [parser]
-      (debug-rule "c_directive")
-    (p/chr parser "%"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "%")))]
+    (name* "c_directive"
+      (fn c_directive-fn [parser]
+        (when DEBUG (debug-rule "c_directive"))
+        @body)
+      nil)))
 ;; [021]
 ;; c-reserved ::=
 ;;   '@' | '`'
 (def c_reserved
-  (name* "c_reserved"
-    (fn c_reserved-fn [parser]
-      (debug-rule "c_reserved")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      (p/chr parser
        "\u0040"
@@ -492,18 +531,20 @@
     (p/chr parser
        "\u0060"
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_reserved"
+      (fn c_reserved-fn [parser]
+        (when DEBUG (debug-rule "c_reserved"))
+        @body)
+      nil)))
 ;; [022]
 ;; c-indicator ::=
 ;;   '-' | '?' | ':' | ',' | '[' | ']' | '{' | '}'
 ;;   | '#' | '&' | '*' | '!' | '|' | '>' | ''' | '"'
 ;;   | '%' | '@' | '`'
 (def c_indicator
-  (name* "c_indicator"
-    (fn c_indicator-fn [parser]
-      (debug-rule "c_indicator")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      (p/chr parser
        "-"
@@ -562,16 +603,18 @@
     (p/chr parser
        "\u0060"
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_indicator"
+      (fn c_indicator-fn [parser]
+        (when DEBUG (debug-rule "c_indicator"))
+        @body)
+      nil)))
 ;; [023]
 ;; c-flow-indicator ::=
 ;;   ',' | '[' | ']' | '{' | '}'
 (def c_flow_indicator
-  (name* "c_flow_indicator"
-    (fn c_flow_indicator-fn [parser]
-      (debug-rule "c_flow_indicator")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      (p/chr parser
        ","
@@ -588,65 +631,75 @@
     (p/chr parser
        "\u007D"
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_flow_indicator"
+      (fn c_flow_indicator-fn [parser]
+        (when DEBUG (debug-rule "c_flow_indicator"))
+        @body)
+      nil)))
 ;; [024]
 ;; b-line-feed ::=
 ;;   x:A
 (def b_line_feed
-  (name* "b_line_feed"
-    (fn b_line_feed-fn [parser]
-      (debug-rule "b_line_feed")
-    (p/chr parser "\u000A"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "\u000A")))]
+    (name* "b_line_feed"
+      (fn b_line_feed-fn [parser]
+        (when DEBUG (debug-rule "b_line_feed"))
+        @body)
+      nil)))
 ;; [025]
 ;; b-carriage-return ::=
 ;;   x:D
 (def b_carriage_return
-  (name* "b_carriage_return"
-    (fn b_carriage_return-fn [parser]
-      (debug-rule "b_carriage_return")
-    (p/chr parser "\u000D"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "\u000D")))]
+    (name* "b_carriage_return"
+      (fn b_carriage_return-fn [parser]
+        (when DEBUG (debug-rule "b_carriage_return"))
+        @body)
+      nil)))
 ;; [026]
 ;; b-char ::=
 ;;   b-line-feed | b-carriage-return
 (def b_char
-  (name* "b_char"
-    (fn b_char-fn [parser]
-      (debug-rule "b_char")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      b_line_feed,
     b_carriage_return
-  ))
-    nil))
-
+  )))]
+    (name* "b_char"
+      (fn b_char-fn [parser]
+        (when DEBUG (debug-rule "b_char"))
+        @body)
+      nil)))
 ;; [027]
 ;; nb-char ::=
 ;;   c-printable - b-char - c-byte-order-mark
 (def nb_char
-  (name* "nb_char"
-    (fn nb_char-fn [parser]
-      (debug-rule "nb_char")
+  (let [body (delay
+               (let [parser nil]
     (p/but parser
      c_printable,
     b_char,
     c_byte_order_mark
-  ))
-    nil))
-
+  )))]
+    (name* "nb_char"
+      (fn nb_char-fn [parser]
+        (when DEBUG (debug-rule "nb_char"))
+        @body)
+      nil)))
 ;; [028]
 ;; b-break ::=
 ;;   ( b-carriage-return b-line-feed )
 ;;   | b-carriage-return
 ;;   | b-line-feed
 (def b_break
-  (name* "b_break"
-    (fn b_break-fn [parser]
-      (debug-rule "b_break")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      (p/all parser
        b_carriage_return,
@@ -654,93 +707,109 @@
     ),
     b_carriage_return,
     b_line_feed
-  ))
-    nil))
-
+  )))]
+    (name* "b_break"
+      (fn b_break-fn [parser]
+        (when DEBUG (debug-rule "b_break"))
+        @body)
+      nil)))
 ;; [029]
 ;; b-as-line-feed ::=
 ;;   b-break
 (def b_as_line_feed
-  (name* "b_as_line_feed"
-    (fn b_as_line_feed-fn [parser]
-      (debug-rule "b_as_line_feed")
-    b_break)
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    b_break))]
+    (name* "b_as_line_feed"
+      (fn b_as_line_feed-fn [parser]
+        (when DEBUG (debug-rule "b_as_line_feed"))
+        @body)
+      nil)))
 ;; [030]
 ;; b-non-content ::=
 ;;   b-break
 (def b_non_content
-  (name* "b_non_content"
-    (fn b_non_content-fn [parser]
-      (debug-rule "b_non_content")
-    b_break)
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    b_break))]
+    (name* "b_non_content"
+      (fn b_non_content-fn [parser]
+        (when DEBUG (debug-rule "b_non_content"))
+        @body)
+      nil)))
 ;; [031]
 ;; s-space ::=
 ;;   x:20
 (def s_space
-  (name* "s_space"
-    (fn s_space-fn [parser]
-      (debug-rule "s_space")
-    (p/chr parser "\u0020"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "\u0020")))]
+    (name* "s_space"
+      (fn s_space-fn [parser]
+        (when DEBUG (debug-rule "s_space"))
+        @body)
+      nil)))
 ;; [032]
 ;; s-tab ::=
 ;;   x:9
 (def s_tab
-  (name* "s_tab"
-    (fn s_tab-fn [parser]
-      (debug-rule "s_tab")
-    (p/chr parser "\u0009"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "\u0009")))]
+    (name* "s_tab"
+      (fn s_tab-fn [parser]
+        (when DEBUG (debug-rule "s_tab"))
+        @body)
+      nil)))
 ;; [033]
 ;; s-white ::=
 ;;   s-space | s-tab
 (def s_white
-  (name* "s_white"
-    (fn s_white-fn [parser]
-      (debug-rule "s_white")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      s_space,
     s_tab
-  ))
-    nil))
-
+  )))]
+    (name* "s_white"
+      (fn s_white-fn [parser]
+        (when DEBUG (debug-rule "s_white"))
+        @body)
+      nil)))
 ;; [034]
 ;; ns-char ::=
 ;;   nb-char - s-white
 (def ns_char
-  (name* "ns_char"
-    (fn ns_char-fn [parser]
-      (debug-rule "ns_char")
+  (let [body (delay
+               (let [parser nil]
     (p/but parser
      nb_char,
     s_white
-  ))
-    nil))
-
+  )))]
+    (name* "ns_char"
+      (fn ns_char-fn [parser]
+        (when DEBUG (debug-rule "ns_char"))
+        @body)
+      nil)))
 ;; [035]
 ;; ns-dec-digit ::=
 ;;   [x:30-x:39]
 (def ns_dec_digit
-  (name* "ns_dec_digit"
-    (fn ns_dec_digit-fn [parser]
-      (debug-rule "ns_dec_digit")
-    (p/rng parser "\u0030", "\u0039"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/rng parser "\u0030", "\u0039")))]
+    (name* "ns_dec_digit"
+      (fn ns_dec_digit-fn [parser]
+        (when DEBUG (debug-rule "ns_dec_digit"))
+        @body)
+      nil)))
 ;; [036]
 ;; ns-hex-digit ::=
 ;;   ns-dec-digit
 ;;   | [x:41-x:46] | [x:61-x:66]
 (def ns_hex_digit
-  (name* "ns_hex_digit"
-    (fn ns_hex_digit-fn [parser]
-      (debug-rule "ns_hex_digit")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      ns_dec_digit,
     (p/rng parser
@@ -751,16 +820,18 @@
        "\u0061",
       "\u0066"
     )
-  ))
-    nil))
-
+  )))]
+    (name* "ns_hex_digit"
+      (fn ns_hex_digit-fn [parser]
+        (when DEBUG (debug-rule "ns_hex_digit"))
+        @body)
+      nil)))
 ;; [037]
 ;; ns-ascii-letter ::=
 ;;   [x:41-x:5A] | [x:61-x:7A]
 (def ns_ascii_letter
-  (name* "ns_ascii_letter"
-    (fn ns_ascii_letter-fn [parser]
-      (debug-rule "ns_ascii_letter")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      (p/rng parser
        "\u0041",
@@ -770,34 +841,38 @@
        "\u0061",
       "\u007A"
     )
-  ))
-    nil))
-
+  )))]
+    (name* "ns_ascii_letter"
+      (fn ns_ascii_letter-fn [parser]
+        (when DEBUG (debug-rule "ns_ascii_letter"))
+        @body)
+      nil)))
 ;; [038]
 ;; ns-word-char ::=
 ;;   ns-dec-digit | ns-ascii-letter | '-'
 (def ns_word_char
-  (name* "ns_word_char"
-    (fn ns_word_char-fn [parser]
-      (debug-rule "ns_word_char")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      ns_dec_digit,
     ns_ascii_letter,
     (p/chr parser
        "-"
     )
-  ))
-    nil))
-
+  )))]
+    (name* "ns_word_char"
+      (fn ns_word_char-fn [parser]
+        (when DEBUG (debug-rule "ns_word_char"))
+        @body)
+      nil)))
 ;; [039]
 ;; ns-uri-char ::=
 ;;   '%' ns-hex-digit ns-hex-digit | ns-word-char | '#'
 ;;   | ';' | '/' | '?' | ':' | '@' | '&' | '=' | '+' | '$' | ','
 ;;   | '_' | '.' | '!' | '~' | '*' | ''' | '(' | ')' | '[' | ']'
 (def ns_uri_char
-  (name* "ns_uri_char"
-    (fn ns_uri_char-fn [parser]
-      (debug-rule "ns_uri_char")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      (p/all parser
        (p/chr parser
@@ -870,72 +945,84 @@
     (p/chr parser
        "]"
     )
-  ))
-    nil))
-
+  )))]
+    (name* "ns_uri_char"
+      (fn ns_uri_char-fn [parser]
+        (when DEBUG (debug-rule "ns_uri_char"))
+        @body)
+      nil)))
 ;; [040]
 ;; ns-tag-char ::=
 ;;   ns-uri-char - '!' - c-flow-indicator
 (def ns_tag_char
-  (name* "ns_tag_char"
-    (fn ns_tag_char-fn [parser]
-      (debug-rule "ns_tag_char")
+  (let [body (delay
+               (let [parser nil]
     (p/but parser
      ns_uri_char,
     (p/chr parser
        "!"
     ),
     c_flow_indicator
-  ))
-    nil))
-
+  )))]
+    (name* "ns_tag_char"
+      (fn ns_tag_char-fn [parser]
+        (when DEBUG (debug-rule "ns_tag_char"))
+        @body)
+      nil)))
 ;; [041]
 ;; c-escape ::=
 ;;   '\\'
 (def c_escape
-  (name* "c_escape"
-    (fn c_escape-fn [parser]
-      (debug-rule "c_escape")
-    (p/chr parser "\\"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "\\")))]
+    (name* "c_escape"
+      (fn c_escape-fn [parser]
+        (when DEBUG (debug-rule "c_escape"))
+        @body)
+      nil)))
 ;; [042]
 ;; ns-esc-null ::=
 ;;   '0'
 (def ns_esc_null
-  (name* "ns_esc_null"
-    (fn ns_esc_null-fn [parser]
-      (debug-rule "ns_esc_null")
-    (p/chr parser "0"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "0")))]
+    (name* "ns_esc_null"
+      (fn ns_esc_null-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_null"))
+        @body)
+      nil)))
 ;; [043]
 ;; ns-esc-bell ::=
 ;;   'a'
 (def ns_esc_bell
-  (name* "ns_esc_bell"
-    (fn ns_esc_bell-fn [parser]
-      (debug-rule "ns_esc_bell")
-    (p/chr parser "a"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "a")))]
+    (name* "ns_esc_bell"
+      (fn ns_esc_bell-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_bell"))
+        @body)
+      nil)))
 ;; [044]
 ;; ns-esc-backspace ::=
 ;;   'b'
 (def ns_esc_backspace
-  (name* "ns_esc_backspace"
-    (fn ns_esc_backspace-fn [parser]
-      (debug-rule "ns_esc_backspace")
-    (p/chr parser "b"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "b")))]
+    (name* "ns_esc_backspace"
+      (fn ns_esc_backspace-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_backspace"))
+        @body)
+      nil)))
 ;; [045]
 ;; ns-esc-horizontal-tab ::=
 ;;   't' | x:9
 (def ns_esc_horizontal_tab
-  (name* "ns_esc_horizontal_tab"
-    (fn ns_esc_horizontal_tab-fn [parser]
-      (debug-rule "ns_esc_horizontal_tab")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      (p/chr parser
        "t"
@@ -943,147 +1030,175 @@
     (p/chr parser
        "\u0009"
     )
-  ))
-    nil))
-
+  )))]
+    (name* "ns_esc_horizontal_tab"
+      (fn ns_esc_horizontal_tab-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_horizontal_tab"))
+        @body)
+      nil)))
 ;; [046]
 ;; ns-esc-line-feed ::=
 ;;   'n'
 (def ns_esc_line_feed
-  (name* "ns_esc_line_feed"
-    (fn ns_esc_line_feed-fn [parser]
-      (debug-rule "ns_esc_line_feed")
-    (p/chr parser "n"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "n")))]
+    (name* "ns_esc_line_feed"
+      (fn ns_esc_line_feed-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_line_feed"))
+        @body)
+      nil)))
 ;; [047]
 ;; ns-esc-vertical-tab ::=
 ;;   'v'
 (def ns_esc_vertical_tab
-  (name* "ns_esc_vertical_tab"
-    (fn ns_esc_vertical_tab-fn [parser]
-      (debug-rule "ns_esc_vertical_tab")
-    (p/chr parser "v"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "v")))]
+    (name* "ns_esc_vertical_tab"
+      (fn ns_esc_vertical_tab-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_vertical_tab"))
+        @body)
+      nil)))
 ;; [048]
 ;; ns-esc-form-feed ::=
 ;;   'f'
 (def ns_esc_form_feed
-  (name* "ns_esc_form_feed"
-    (fn ns_esc_form_feed-fn [parser]
-      (debug-rule "ns_esc_form_feed")
-    (p/chr parser "f"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "f")))]
+    (name* "ns_esc_form_feed"
+      (fn ns_esc_form_feed-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_form_feed"))
+        @body)
+      nil)))
 ;; [049]
 ;; ns-esc-carriage-return ::=
 ;;   'r'
 (def ns_esc_carriage_return
-  (name* "ns_esc_carriage_return"
-    (fn ns_esc_carriage_return-fn [parser]
-      (debug-rule "ns_esc_carriage_return")
-    (p/chr parser "r"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "r")))]
+    (name* "ns_esc_carriage_return"
+      (fn ns_esc_carriage_return-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_carriage_return"))
+        @body)
+      nil)))
 ;; [050]
 ;; ns-esc-escape ::=
 ;;   'e'
 (def ns_esc_escape
-  (name* "ns_esc_escape"
-    (fn ns_esc_escape-fn [parser]
-      (debug-rule "ns_esc_escape")
-    (p/chr parser "e"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "e")))]
+    (name* "ns_esc_escape"
+      (fn ns_esc_escape-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_escape"))
+        @body)
+      nil)))
 ;; [051]
 ;; ns-esc-space ::=
 ;;   x:20
 (def ns_esc_space
-  (name* "ns_esc_space"
-    (fn ns_esc_space-fn [parser]
-      (debug-rule "ns_esc_space")
-    (p/chr parser "\u0020"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "\u0020")))]
+    (name* "ns_esc_space"
+      (fn ns_esc_space-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_space"))
+        @body)
+      nil)))
 ;; [052]
 ;; ns-esc-double-quote ::=
 ;;   '"'
 (def ns_esc_double_quote
-  (name* "ns_esc_double_quote"
-    (fn ns_esc_double_quote-fn [parser]
-      (debug-rule "ns_esc_double_quote")
-    (p/chr parser "\""))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "\"")))]
+    (name* "ns_esc_double_quote"
+      (fn ns_esc_double_quote-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_double_quote"))
+        @body)
+      nil)))
 ;; [053]
 ;; ns-esc-slash ::=
 ;;   '/'
 (def ns_esc_slash
-  (name* "ns_esc_slash"
-    (fn ns_esc_slash-fn [parser]
-      (debug-rule "ns_esc_slash")
-    (p/chr parser "/"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "/")))]
+    (name* "ns_esc_slash"
+      (fn ns_esc_slash-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_slash"))
+        @body)
+      nil)))
 ;; [054]
 ;; ns-esc-backslash ::=
 ;;   '\\'
 (def ns_esc_backslash
-  (name* "ns_esc_backslash"
-    (fn ns_esc_backslash-fn [parser]
-      (debug-rule "ns_esc_backslash")
-    (p/chr parser "\\"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "\\")))]
+    (name* "ns_esc_backslash"
+      (fn ns_esc_backslash-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_backslash"))
+        @body)
+      nil)))
 ;; [055]
 ;; ns-esc-next-line ::=
 ;;   'N'
 (def ns_esc_next_line
-  (name* "ns_esc_next_line"
-    (fn ns_esc_next_line-fn [parser]
-      (debug-rule "ns_esc_next_line")
-    (p/chr parser "N"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "N")))]
+    (name* "ns_esc_next_line"
+      (fn ns_esc_next_line-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_next_line"))
+        @body)
+      nil)))
 ;; [056]
 ;; ns-esc-non-breaking-space ::=
 ;;   '_'
 (def ns_esc_non_breaking_space
-  (name* "ns_esc_non_breaking_space"
-    (fn ns_esc_non_breaking_space-fn [parser]
-      (debug-rule "ns_esc_non_breaking_space")
-    (p/chr parser "_"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "_")))]
+    (name* "ns_esc_non_breaking_space"
+      (fn ns_esc_non_breaking_space-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_non_breaking_space"))
+        @body)
+      nil)))
 ;; [057]
 ;; ns-esc-line-separator ::=
 ;;   'L'
 (def ns_esc_line_separator
-  (name* "ns_esc_line_separator"
-    (fn ns_esc_line_separator-fn [parser]
-      (debug-rule "ns_esc_line_separator")
-    (p/chr parser "L"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "L")))]
+    (name* "ns_esc_line_separator"
+      (fn ns_esc_line_separator-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_line_separator"))
+        @body)
+      nil)))
 ;; [058]
 ;; ns-esc-paragraph-separator ::=
 ;;   'P'
 (def ns_esc_paragraph_separator
-  (name* "ns_esc_paragraph_separator"
-    (fn ns_esc_paragraph_separator-fn [parser]
-      (debug-rule "ns_esc_paragraph_separator")
-    (p/chr parser "P"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "P")))]
+    (name* "ns_esc_paragraph_separator"
+      (fn ns_esc_paragraph_separator-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_paragraph_separator"))
+        @body)
+      nil)))
 ;; [059]
 ;; ns-esc-8-bit ::=
 ;;   'x'
 ;;   ( ns-hex-digit{2} )
 (def ns_esc_8_bit
-  (name* "ns_esc_8_bit"
-    (fn ns_esc_8_bit-fn [parser]
-      (debug-rule "ns_esc_8_bit")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "x"
@@ -1093,17 +1208,19 @@
       2,
       ns_hex_digit
     )
-  ))
-    nil))
-
+  )))]
+    (name* "ns_esc_8_bit"
+      (fn ns_esc_8_bit-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_8_bit"))
+        @body)
+      nil)))
 ;; [060]
 ;; ns-esc-16-bit ::=
 ;;   'u'
 ;;   ( ns-hex-digit{4} )
 (def ns_esc_16_bit
-  (name* "ns_esc_16_bit"
-    (fn ns_esc_16_bit-fn [parser]
-      (debug-rule "ns_esc_16_bit")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "u"
@@ -1113,17 +1230,19 @@
       4,
       ns_hex_digit
     )
-  ))
-    nil))
-
+  )))]
+    (name* "ns_esc_16_bit"
+      (fn ns_esc_16_bit-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_16_bit"))
+        @body)
+      nil)))
 ;; [061]
 ;; ns-esc-32-bit ::=
 ;;   'U'
 ;;   ( ns-hex-digit{8} )
 (def ns_esc_32_bit
-  (name* "ns_esc_32_bit"
-    (fn ns_esc_32_bit-fn [parser]
-      (debug-rule "ns_esc_32_bit")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "U"
@@ -1133,9 +1252,12 @@
       8,
       ns_hex_digit
     )
-  ))
-    nil))
-
+  )))]
+    (name* "ns_esc_32_bit"
+      (fn ns_esc_32_bit-fn [parser]
+        (when DEBUG (debug-rule "ns_esc_32_bit"))
+        @body)
+      nil)))
 ;; [062]
 ;; c-ns-esc-char ::=
 ;;   '\\'
@@ -1148,9 +1270,8 @@
 ;;   | ns-esc-line-separator | ns-esc-paragraph-separator
 ;;   | ns-esc-8-bit | ns-esc-16-bit | ns-esc-32-bit )
 (def c_ns_esc_char
-  (name* "c_ns_esc_char"
-    (fn c_ns_esc_char-fn [parser]
-      (debug-rule "c_ns_esc_char")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "\\"
@@ -1177,27 +1298,37 @@
       ns_esc_16_bit,
       ns_esc_32_bit
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_ns_esc_char"
+      (fn c_ns_esc_char-fn [parser]
+        (when DEBUG (debug-rule "c_ns_esc_char"))
+        @body)
+      nil)))
 ;; [063]
 ;; s-indent(n) ::=
 ;;   s-space{n}
 (def s_indent
-  (name* "s_indent"
-    (fn s_indent-fn [parser n]
-      (debug-rule "s_indent", n)
-    (p/rep parser n, n, s_space))
-    nil))
-
+  (let [cache (volatile! {})]
+    (name* "s_indent"
+      (fn s_indent-fn [parser n]
+        (when DEBUG (debug-rule "s_indent", n))
+        (or (get @cache [n])
+            (let [body
+  (p/rep parser n, n, s_space)]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [064]
 ;; s-indent(<n) ::=
 ;;   s-space{m} <where_m_<_n>
 (def s_indent_lt
-  (name* "s_indent_lt"
-    (fn s_indent_lt-fn [parser n]
-      (debug-rule "s_indent_lt", n)
-    (p/may parser
+  (let [cache (volatile! {})]
+    (name* "s_indent_lt"
+      (fn s_indent_lt-fn [parser n]
+        (when DEBUG (debug-rule "s_indent_lt", n))
+        (or (get @cache [n])
+            (let [body
+  (p/may parser
      (p/all parser
        (p/rep parser
          0,
@@ -1211,17 +1342,21 @@
         n
       )
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [065]
 ;; s-indent(<=n) ::=
 ;;   s-space{m} <where_m_<=_n>
 (def s_indent_le
-  (name* "s_indent_le"
-    (fn s_indent_le-fn [parser n]
-      (debug-rule "s_indent_le", n)
-    (p/may parser
+  (let [cache (volatile! {})]
+    (name* "s_indent_le"
+      (fn s_indent_le-fn [parser n]
+        (when DEBUG (debug-rule "s_indent_le", n))
+        (or (get @cache [n])
+            (let [body
+  (p/may parser
      (p/all parser
        (p/rep parser
          0,
@@ -1235,16 +1370,16 @@
         n
       )
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [066]
 ;; s-separate-in-line ::=
 ;;   s-white+ | <start_of_line>
 (def s_separate_in_line
-  (name* "s_separate_in_line"
-    (fn s_separate_in_line-fn [parser]
-      (debug-rule "s_separate_in_line")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      (p/rep parser
        1,
@@ -1252,9 +1387,12 @@
       s_white
     ),
     (p/start-of-line parser)
-  ))
-    nil))
-
+  )))]
+    (name* "s_separate_in_line"
+      (fn s_separate_in_line-fn [parser]
+        (when DEBUG (debug-rule "s_separate_in_line"))
+        @body)
+      nil)))
 ;; [067]
 ;; s-line-prefix(n,c) ::=
 ;;   ( c = block-out => s-block-line-prefix(n) )
@@ -1262,10 +1400,13 @@
 ;;   ( c = flow-out => s-flow-line-prefix(n) )
 ;;   ( c = flow-in => s-flow-line-prefix(n) )
 (def s_line_prefix
-  (name* "s_line_prefix"
-    (fn s_line_prefix-fn [parser n c]
-      (debug-rule "s_line_prefix", n, c)
-    (p/case* parser
+  (let [cache (volatile! {})]
+    (name* "s_line_prefix"
+      (fn s_line_prefix-fn [parser n c]
+        (when DEBUG (debug-rule "s_line_prefix", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/case* parser
      c,
     {
       "block-in" [s_block_line_prefix, n],
@@ -1273,104 +1414,130 @@
       "flow-in" [s_flow_line_prefix, n],
       "flow-out" [s_flow_line_prefix, n],
     }
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [068]
 ;; s-block-line-prefix(n) ::=
 ;;   s-indent(n)
 (def s_block_line_prefix
-  (name* "s_block_line_prefix"
-    (fn s_block_line_prefix-fn [parser n]
-      (debug-rule "s_block_line_prefix", n)
-    [s_indent, n])
-    nil))
-
+  (let [cache (volatile! {})]
+    (name* "s_block_line_prefix"
+      (fn s_block_line_prefix-fn [parser n]
+        (when DEBUG (debug-rule "s_block_line_prefix", n))
+        (or (get @cache [n])
+            (let [body
+  [s_indent, n]]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [069]
 ;; s-flow-line-prefix(n) ::=
 ;;   s-indent(n)
 ;;   s-separate-in-line?
 (def s_flow_line_prefix
-  (name* "s_flow_line_prefix"
-    (fn s_flow_line_prefix-fn [parser n]
-      (debug-rule "s_flow_line_prefix", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "s_flow_line_prefix"
+      (fn s_flow_line_prefix-fn [parser n]
+        (when DEBUG (debug-rule "s_flow_line_prefix", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      [s_indent, n],
     (p/rep parser
        0,
       1,
       s_separate_in_line
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [070]
 ;; l-empty(n,c) ::=
 ;;   ( s-line-prefix(n,c) | s-indent(<n) )
 ;;   b-as-line-feed
 (def l_empty
-  (name* "l_empty"
-    (fn l_empty-fn [parser n c]
-      (debug-rule "l_empty", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "l_empty"
+      (fn l_empty-fn [parser n c]
+        (when DEBUG (debug-rule "l_empty", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      (p/any parser
        [s_line_prefix, n, c],
       [s_indent_lt, n]
     ),
     b_as_line_feed
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [071]
 ;; b-l-trimmed(n,c) ::=
 ;;   b-non-content l-empty(n,c)+
 (def b_l_trimmed
-  (name* "b_l_trimmed"
-    (fn b_l_trimmed-fn [parser n c]
-      (debug-rule "b_l_trimmed", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "b_l_trimmed"
+      (fn b_l_trimmed-fn [parser n c]
+        (when DEBUG (debug-rule "b_l_trimmed", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      b_non_content,
     (p/rep parser
        1,
       nil,
       [l_empty, n, c]
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [072]
 ;; b-as-space ::=
 ;;   b-break
 (def b_as_space
-  (name* "b_as_space"
-    (fn b_as_space-fn [parser]
-      (debug-rule "b_as_space")
-    b_break)
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    b_break))]
+    (name* "b_as_space"
+      (fn b_as_space-fn [parser]
+        (when DEBUG (debug-rule "b_as_space"))
+        @body)
+      nil)))
 ;; [073]
 ;; b-l-folded(n,c) ::=
 ;;   b-l-trimmed(n,c) | b-as-space
 (def b_l_folded
-  (name* "b_l_folded"
-    (fn b_l_folded-fn [parser n c]
-      (debug-rule "b_l_folded", n, c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "b_l_folded"
+      (fn b_l_folded-fn [parser n c]
+        (when DEBUG (debug-rule "b_l_folded", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/any parser
      [b_l_trimmed, n, c],
     b_as_space
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [074]
 ;; s-flow-folded(n) ::=
 ;;   s-separate-in-line?
 ;;   b-l-folded(n,flow-in)
 ;;   s-flow-line-prefix(n)
 (def s_flow_folded
-  (name* "s_flow_folded"
-    (fn s_flow_folded-fn [parser n]
-      (debug-rule "s_flow_folded", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "s_flow_folded"
+      (fn s_flow_folded-fn [parser n]
+        (when DEBUG (debug-rule "s_flow_folded", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      (p/rep parser
        0,
       1,
@@ -1378,16 +1545,16 @@
     ),
     [b_l_folded, n, "flow-in"],
     [s_flow_line_prefix, n]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [075]
 ;; c-nb-comment-text ::=
 ;;   '#' nb-char*
 (def c_nb_comment_text
-  (name* "c_nb_comment_text"
-    (fn c_nb_comment_text-fn [parser]
-      (debug-rule "c_nb_comment_text")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "\u0023"
@@ -1397,31 +1564,35 @@
       nil,
       nb_char
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_nb_comment_text"
+      (fn c_nb_comment_text-fn [parser]
+        (when DEBUG (debug-rule "c_nb_comment_text"))
+        @body)
+      nil)))
 ;; [076]
 ;; b-comment ::=
 ;;   b-non-content | <end_of_file>
 (def b_comment
-  (name* "b_comment"
-    (fn b_comment-fn [parser]
-      (debug-rule "b_comment")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      b_non_content,
     (p/end-of-stream parser)
-  ))
-    nil))
-
+  )))]
+    (name* "b_comment"
+      (fn b_comment-fn [parser]
+        (when DEBUG (debug-rule "b_comment"))
+        @body)
+      nil)))
 ;; [077]
 ;; s-b-comment ::=
 ;;   ( s-separate-in-line
 ;;   c-nb-comment-text? )?
 ;;   b-comment
 (def s_b_comment
-  (name* "s_b_comment"
-    (fn s_b_comment-fn [parser]
-      (debug-rule "s_b_comment")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/rep parser
        0,
@@ -1435,17 +1606,19 @@
         )
       )),
     b_comment
-  ))
-    nil))
-
+  )))]
+    (name* "s_b_comment"
+      (fn s_b_comment-fn [parser]
+        (when DEBUG (debug-rule "s_b_comment"))
+        @body)
+      nil)))
 ;; [078]
 ;; l-comment ::=
 ;;   s-separate-in-line c-nb-comment-text?
 ;;   b-comment
 (def l_comment
-  (name* "l_comment"
-    (fn l_comment-fn [parser]
-      (debug-rule "l_comment")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      s_separate_in_line,
     (p/rep parser
@@ -1454,17 +1627,19 @@
       c_nb_comment_text
     ),
     b_comment
-  ))
-    nil))
-
+  )))]
+    (name* "l_comment"
+      (fn l_comment-fn [parser]
+        (when DEBUG (debug-rule "l_comment"))
+        @body)
+      nil)))
 ;; [079]
 ;; s-l-comments ::=
 ;;   ( s-b-comment | <start_of_line> )
 ;;   l-comment*
 (def s_l_comments
-  (name* "s_l_comments"
-    (fn s_l_comments-fn [parser]
-      (debug-rule "s_l_comments")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/any parser
        s_b_comment,
@@ -1475,9 +1650,12 @@
       nil,
       l_comment
     )
-  ))
-    nil))
-
+  )))]
+    (name* "s_l_comments"
+      (fn s_l_comments-fn [parser]
+        (when DEBUG (debug-rule "s_l_comments"))
+        @body)
+      nil)))
 ;; [080]
 ;; s-separate(n,c) ::=
 ;;   ( c = block-out => s-separate-lines(n) )
@@ -1487,10 +1665,13 @@
 ;;   ( c = block-key => s-separate-in-line )
 ;;   ( c = flow-key => s-separate-in-line )
 (def s_separate
-  (name* "s_separate"
-    (fn s_separate-fn [parser n c]
-      (debug-rule "s_separate", n, c)
-    (p/case* parser
+  (let [cache (volatile! {})]
+    (name* "s_separate"
+      (fn s_separate-fn [parser n c]
+        (when DEBUG (debug-rule "s_separate", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/case* parser
      c,
     {
       "block-in" [s_separate_lines, n],
@@ -1500,27 +1681,32 @@
       "flow-key" s_separate_in_line,
       "flow-out" [s_separate_lines, n],
     }
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [081]
 ;; s-separate-lines(n) ::=
 ;;   ( s-l-comments
 ;;   s-flow-line-prefix(n) )
 ;;   | s-separate-in-line
 (def s_separate_lines
-  (name* "s_separate_lines"
-    (fn s_separate_lines-fn [parser n]
-      (debug-rule "s_separate_lines", n)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "s_separate_lines"
+      (fn s_separate_lines-fn [parser n]
+        (when DEBUG (debug-rule "s_separate_lines", n))
+        (or (get @cache [n])
+            (let [body
+  (p/any parser
      (p/all parser
        s_l_comments,
       [s_flow_line_prefix, n]
     ),
     s_separate_in_line
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [082]
 ;; l-directive ::=
 ;;   '%'
@@ -1529,9 +1715,8 @@
 ;;   | ns-reserved-directive )
 ;;   s-l-comments
 (def l_directive
-  (name* "l_directive"
-    (fn l_directive-fn [parser]
-      (debug-rule "l_directive")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "%"
@@ -1542,17 +1727,19 @@
       ns_reserved_directive
     ),
     s_l_comments
-  ))
-    nil))
-
+  )))]
+    (name* "l_directive"
+      (fn l_directive-fn [parser]
+        (when DEBUG (debug-rule "l_directive"))
+        @body)
+      nil)))
 ;; [083]
 ;; ns-reserved-directive ::=
 ;;   ns-directive-name
 ;;   ( s-separate-in-line ns-directive-parameter )*
 (def ns_reserved_directive
-  (name* "ns_reserved_directive"
-    (fn ns_reserved_directive-fn [parser]
-      (debug-rule "ns_reserved_directive")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      ns_directive_name,
     (p/rep parser
@@ -1562,37 +1749,43 @@
          s_separate_in_line,
         ns_directive_parameter
       ))
-  ))
-    nil))
-
+  )))]
+    (name* "ns_reserved_directive"
+      (fn ns_reserved_directive-fn [parser]
+        (when DEBUG (debug-rule "ns_reserved_directive"))
+        @body)
+      nil)))
 ;; [084]
 ;; ns-directive-name ::=
 ;;   ns-char+
 (def ns_directive_name
-  (name* "ns_directive_name"
-    (fn ns_directive_name-fn [parser]
-      (debug-rule "ns_directive_name")
-    (p/rep2 parser 1, nil, ns_char))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/rep2 parser 1, nil, ns_char)))]
+    (name* "ns_directive_name"
+      (fn ns_directive_name-fn [parser]
+        (when DEBUG (debug-rule "ns_directive_name"))
+        @body)
+      nil)))
 ;; [085]
 ;; ns-directive-parameter ::=
 ;;   ns-char+
 (def ns_directive_parameter
-  (name* "ns_directive_parameter"
-    (fn ns_directive_parameter-fn [parser]
-      (debug-rule "ns_directive_parameter")
-    (p/rep2 parser 1, nil, ns_char))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/rep2 parser 1, nil, ns_char)))]
+    (name* "ns_directive_parameter"
+      (fn ns_directive_parameter-fn [parser]
+        (when DEBUG (debug-rule "ns_directive_parameter"))
+        @body)
+      nil)))
 ;; [086]
 ;; ns-yaml-directive ::=
 ;;   'Y' 'A' 'M' 'L'
 ;;   s-separate-in-line ns-yaml-version
 (def ns_yaml_directive
-  (name* "ns_yaml_directive"
-    (fn ns_yaml_directive-fn [parser]
-      (debug-rule "ns_yaml_directive")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "Y"
@@ -1608,16 +1801,18 @@
     ),
     s_separate_in_line,
     ns_yaml_version
-  ))
-    nil))
-
+  )))]
+    (name* "ns_yaml_directive"
+      (fn ns_yaml_directive-fn [parser]
+        (when DEBUG (debug-rule "ns_yaml_directive"))
+        @body)
+      nil)))
 ;; [087]
 ;; ns-yaml-version ::=
 ;;   ns-dec-digit+ '.' ns-dec-digit+
 (def ns_yaml_version
-  (name* "ns_yaml_version"
-    (fn ns_yaml_version-fn [parser]
-      (debug-rule "ns_yaml_version")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/rep parser
        1,
@@ -1632,18 +1827,20 @@
       nil,
       ns_dec_digit
     )
-  ))
-    nil))
-
+  )))]
+    (name* "ns_yaml_version"
+      (fn ns_yaml_version-fn [parser]
+        (when DEBUG (debug-rule "ns_yaml_version"))
+        @body)
+      nil)))
 ;; [088]
 ;; ns-tag-directive ::=
 ;;   'T' 'A' 'G'
 ;;   s-separate-in-line c-tag-handle
 ;;   s-separate-in-line ns-tag-prefix
 (def ns_tag_directive
-  (name* "ns_tag_directive"
-    (fn ns_tag_directive-fn [parser]
-      (debug-rule "ns_tag_directive")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "T"
@@ -1658,42 +1855,48 @@
     c_tag_handle,
     s_separate_in_line,
     ns_tag_prefix
-  ))
-    nil))
-
+  )))]
+    (name* "ns_tag_directive"
+      (fn ns_tag_directive-fn [parser]
+        (when DEBUG (debug-rule "ns_tag_directive"))
+        @body)
+      nil)))
 ;; [089]
 ;; c-tag-handle ::=
 ;;   c-named-tag-handle
 ;;   | c-secondary-tag-handle
 ;;   | c-primary-tag-handle
 (def c_tag_handle
-  (name* "c_tag_handle"
-    (fn c_tag_handle-fn [parser]
-      (debug-rule "c_tag_handle")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      c_named_tag_handle,
     c_secondary_tag_handle,
     c_primary_tag_handle
-  ))
-    nil))
-
+  )))]
+    (name* "c_tag_handle"
+      (fn c_tag_handle-fn [parser]
+        (when DEBUG (debug-rule "c_tag_handle"))
+        @body)
+      nil)))
 ;; [090]
 ;; c-primary-tag-handle ::=
 ;;   '!'
 (def c_primary_tag_handle
-  (name* "c_primary_tag_handle"
-    (fn c_primary_tag_handle-fn [parser]
-      (debug-rule "c_primary_tag_handle")
-    (p/chr parser "!"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "!")))]
+    (name* "c_primary_tag_handle"
+      (fn c_primary_tag_handle-fn [parser]
+        (when DEBUG (debug-rule "c_primary_tag_handle"))
+        @body)
+      nil)))
 ;; [091]
 ;; c-secondary-tag-handle ::=
 ;;   '!' '!'
 (def c_secondary_tag_handle
-  (name* "c_secondary_tag_handle"
-    (fn c_secondary_tag_handle-fn [parser]
-      (debug-rule "c_secondary_tag_handle")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "!"
@@ -1701,16 +1904,18 @@
     (p/chr parser
        "!"
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_secondary_tag_handle"
+      (fn c_secondary_tag_handle-fn [parser]
+        (when DEBUG (debug-rule "c_secondary_tag_handle"))
+        @body)
+      nil)))
 ;; [092]
 ;; c-named-tag-handle ::=
 ;;   '!' ns-word-char+ '!'
 (def c_named_tag_handle
-  (name* "c_named_tag_handle"
-    (fn c_named_tag_handle-fn [parser]
-      (debug-rule "c_named_tag_handle")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "!"
@@ -1723,29 +1928,33 @@
     (p/chr parser
        "!"
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_named_tag_handle"
+      (fn c_named_tag_handle-fn [parser]
+        (when DEBUG (debug-rule "c_named_tag_handle"))
+        @body)
+      nil)))
 ;; [093]
 ;; ns-tag-prefix ::=
 ;;   c-ns-local-tag-prefix | ns-global-tag-prefix
 (def ns_tag_prefix
-  (name* "ns_tag_prefix"
-    (fn ns_tag_prefix-fn [parser]
-      (debug-rule "ns_tag_prefix")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      c_ns_local_tag_prefix,
     ns_global_tag_prefix
-  ))
-    nil))
-
+  )))]
+    (name* "ns_tag_prefix"
+      (fn ns_tag_prefix-fn [parser]
+        (when DEBUG (debug-rule "ns_tag_prefix"))
+        @body)
+      nil)))
 ;; [094]
 ;; c-ns-local-tag-prefix ::=
 ;;   '!' ns-uri-char*
 (def c_ns_local_tag_prefix
-  (name* "c_ns_local_tag_prefix"
-    (fn c_ns_local_tag_prefix-fn [parser]
-      (debug-rule "c_ns_local_tag_prefix")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "!"
@@ -1755,16 +1964,18 @@
       nil,
       ns_uri_char
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_ns_local_tag_prefix"
+      (fn c_ns_local_tag_prefix-fn [parser]
+        (when DEBUG (debug-rule "c_ns_local_tag_prefix"))
+        @body)
+      nil)))
 ;; [095]
 ;; ns-global-tag-prefix ::=
 ;;   ns-tag-char ns-uri-char*
 (def ns_global_tag_prefix
-  (name* "ns_global_tag_prefix"
-    (fn ns_global_tag_prefix-fn [parser]
-      (debug-rule "ns_global_tag_prefix")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      ns_tag_char,
     (p/rep parser
@@ -1772,9 +1983,12 @@
       nil,
       ns_uri_char
     )
-  ))
-    nil))
-
+  )))]
+    (name* "ns_global_tag_prefix"
+      (fn ns_global_tag_prefix-fn [parser]
+        (when DEBUG (debug-rule "ns_global_tag_prefix"))
+        @body)
+      nil)))
 ;; [096]
 ;; c-ns-properties(n,c) ::=
 ;;   ( c-ns-tag-property
@@ -1782,10 +1996,13 @@
 ;;   | ( c-ns-anchor-property
 ;;   ( s-separate(n,c) c-ns-tag-property )? )
 (def c_ns_properties
-  (name* "c_ns_properties"
-    (fn c_ns_properties-fn [parser n c]
-      (debug-rule "c_ns_properties", n, c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "c_ns_properties"
+      (fn c_ns_properties-fn [parser n c]
+        (when DEBUG (debug-rule "c_ns_properties", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/any parser
      (p/all parser
        c_ns_tag_property,
       (p/rep parser
@@ -1806,32 +2023,34 @@
           c_ns_tag_property
         ))
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [097]
 ;; c-ns-tag-property ::=
 ;;   c-verbatim-tag
 ;;   | c-ns-shorthand-tag
 ;;   | c-non-specific-tag
 (def c_ns_tag_property
-  (name* "c_ns_tag_property"
-    (fn c_ns_tag_property-fn [parser]
-      (debug-rule "c_ns_tag_property")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      c_verbatim_tag,
     c_ns_shorthand_tag,
     c_non_specific_tag
-  ))
-    nil))
-
+  )))]
+    (name* "c_ns_tag_property"
+      (fn c_ns_tag_property-fn [parser]
+        (when DEBUG (debug-rule "c_ns_tag_property"))
+        @body)
+      nil)))
 ;; [098]
 ;; c-verbatim-tag ::=
 ;;   '!' '<' ns-uri-char+ '>'
 (def c_verbatim_tag
-  (name* "c_verbatim_tag"
-    (fn c_verbatim_tag-fn [parser]
-      (debug-rule "c_verbatim_tag")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "!"
@@ -1847,16 +2066,18 @@
     (p/chr parser
        ">"
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_verbatim_tag"
+      (fn c_verbatim_tag-fn [parser]
+        (when DEBUG (debug-rule "c_verbatim_tag"))
+        @body)
+      nil)))
 ;; [099]
 ;; c-ns-shorthand-tag ::=
 ;;   c-tag-handle ns-tag-char+
 (def c_ns_shorthand_tag
-  (name* "c_ns_shorthand_tag"
-    (fn c_ns_shorthand_tag-fn [parser]
-      (debug-rule "c_ns_shorthand_tag")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      c_tag_handle,
     (p/rep parser
@@ -1864,99 +2085,115 @@
       nil,
       ns_tag_char
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_ns_shorthand_tag"
+      (fn c_ns_shorthand_tag-fn [parser]
+        (when DEBUG (debug-rule "c_ns_shorthand_tag"))
+        @body)
+      nil)))
 ;; [100]
 ;; c-non-specific-tag ::=
 ;;   '!'
 (def c_non_specific_tag
-  (name* "c_non_specific_tag"
-    (fn c_non_specific_tag-fn [parser]
-      (debug-rule "c_non_specific_tag")
-    (p/chr parser "!"))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/chr parser "!")))]
+    (name* "c_non_specific_tag"
+      (fn c_non_specific_tag-fn [parser]
+        (when DEBUG (debug-rule "c_non_specific_tag"))
+        @body)
+      nil)))
 ;; [101]
 ;; c-ns-anchor-property ::=
 ;;   '&' ns-anchor-name
 (def c_ns_anchor_property
-  (name* "c_ns_anchor_property"
-    (fn c_ns_anchor_property-fn [parser]
-      (debug-rule "c_ns_anchor_property")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "&"
     ),
     ns_anchor_name
-  ))
-    nil))
-
+  )))]
+    (name* "c_ns_anchor_property"
+      (fn c_ns_anchor_property-fn [parser]
+        (when DEBUG (debug-rule "c_ns_anchor_property"))
+        @body)
+      nil)))
 ;; [102]
 ;; ns-anchor-char ::=
 ;;   ns-char - c-flow-indicator
 (def ns_anchor_char
-  (name* "ns_anchor_char"
-    (fn ns_anchor_char-fn [parser]
-      (debug-rule "ns_anchor_char")
+  (let [body (delay
+               (let [parser nil]
     (p/but parser
      ns_char,
     c_flow_indicator
-  ))
-    nil))
-
+  )))]
+    (name* "ns_anchor_char"
+      (fn ns_anchor_char-fn [parser]
+        (when DEBUG (debug-rule "ns_anchor_char"))
+        @body)
+      nil)))
 ;; [103]
 ;; ns-anchor-name ::=
 ;;   ns-anchor-char+
 (def ns_anchor_name
-  (name* "ns_anchor_name"
-    (fn ns_anchor_name-fn [parser]
-      (debug-rule "ns_anchor_name")
-    (p/rep2 parser 1, nil, ns_anchor_char))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/rep2 parser 1, nil, ns_anchor_char)))]
+    (name* "ns_anchor_name"
+      (fn ns_anchor_name-fn [parser]
+        (when DEBUG (debug-rule "ns_anchor_name"))
+        @body)
+      nil)))
 ;; [104]
 ;; c-ns-alias-node ::=
 ;;   '*' ns-anchor-name
 (def c_ns_alias_node
-  (name* "c_ns_alias_node"
-    (fn c_ns_alias_node-fn [parser]
-      (debug-rule "c_ns_alias_node")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "*"
     ),
     ns_anchor_name
-  ))
-    nil))
-
+  )))]
+    (name* "c_ns_alias_node"
+      (fn c_ns_alias_node-fn [parser]
+        (when DEBUG (debug-rule "c_ns_alias_node"))
+        @body)
+      nil)))
 ;; [105]
 ;; e-scalar ::=
 ;;   <empty>
 (def e_scalar
-  (name* "e_scalar"
-    (fn e_scalar-fn [parser]
-      (debug-rule "e_scalar")
-    empty)
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    empty))]
+    (name* "e_scalar"
+      (fn e_scalar-fn [parser]
+        (when DEBUG (debug-rule "e_scalar"))
+        @body)
+      nil)))
 ;; [106]
 ;; e-node ::=
 ;;   e-scalar
 (def e_node
-  (name* "e_node"
-    (fn e_node-fn [parser]
-      (debug-rule "e_node")
-    e_scalar)
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    e_scalar))]
+    (name* "e_node"
+      (fn e_node-fn [parser]
+        (when DEBUG (debug-rule "e_node"))
+        @body)
+      nil)))
 ;; [107]
 ;; nb-double-char ::=
 ;;   c-ns-esc-char | ( nb-json - '\\' - '"' )
 (def nb_double_char
-  (name* "nb_double_char"
-    (fn nb_double_char-fn [parser]
-      (debug-rule "nb_double_char")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      c_ns_esc_char,
     (p/but parser
@@ -1968,31 +2205,39 @@
          "\""
       )
     )
-  ))
-    nil))
-
+  )))]
+    (name* "nb_double_char"
+      (fn nb_double_char-fn [parser]
+        (when DEBUG (debug-rule "nb_double_char"))
+        @body)
+      nil)))
 ;; [108]
 ;; ns-double-char ::=
 ;;   nb-double-char - s-white
 (def ns_double_char
-  (name* "ns_double_char"
-    (fn ns_double_char-fn [parser]
-      (debug-rule "ns_double_char")
+  (let [body (delay
+               (let [parser nil]
     (p/but parser
      nb_double_char,
     s_white
-  ))
-    nil))
-
+  )))]
+    (name* "ns_double_char"
+      (fn ns_double_char-fn [parser]
+        (when DEBUG (debug-rule "ns_double_char"))
+        @body)
+      nil)))
 ;; [109]
 ;; c-double-quoted(n,c) ::=
 ;;   '"' nb-double-text(n,c)
 ;;   '"'
 (def c_double_quoted
-  (name* "c_double_quoted"
-    (fn c_double_quoted-fn [parser n c]
-      (debug-rule "c_double_quoted", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_double_quoted"
+      (fn c_double_quoted-fn [parser n c]
+        (when DEBUG (debug-rule "c_double_quoted", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      (p/chr parser
        "\""
     ),
@@ -2000,9 +2245,10 @@
     (p/chr parser
        "\""
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [110]
 ;; nb-double-text(n,c) ::=
 ;;   ( c = flow-out => nb-double-multi-line(n) )
@@ -2010,10 +2256,13 @@
 ;;   ( c = block-key => nb-double-one-line )
 ;;   ( c = flow-key => nb-double-one-line )
 (def nb_double_text
-  (name* "nb_double_text"
-    (fn nb_double_text-fn [parser n c]
-      (debug-rule "nb_double_text", n, c)
-    (p/case* parser
+  (let [cache (volatile! {})]
+    (name* "nb_double_text"
+      (fn nb_double_text-fn [parser n c]
+        (when DEBUG (debug-rule "nb_double_text", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/case* parser
      c,
     {
       "block-key" nb_double_one_line,
@@ -2021,29 +2270,35 @@
       "flow-key" nb_double_one_line,
       "flow-out" [nb_double_multi_line, n],
     }
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [111]
 ;; nb-double-one-line ::=
 ;;   nb-double-char*
 (def nb_double_one_line
-  (name* "nb_double_one_line"
-    (fn nb_double_one_line-fn [parser]
-      (debug-rule "nb_double_one_line")
-    (p/rep2 parser 0, nil, nb_double_char))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/rep2 parser 0, nil, nb_double_char)))]
+    (name* "nb_double_one_line"
+      (fn nb_double_one_line-fn [parser]
+        (when DEBUG (debug-rule "nb_double_one_line"))
+        @body)
+      nil)))
 ;; [112]
 ;; s-double-escaped(n) ::=
 ;;   s-white* '\\'
 ;;   b-non-content
 ;;   l-empty(n,flow-in)* s-flow-line-prefix(n)
 (def s_double_escaped
-  (name* "s_double_escaped"
-    (fn s_double_escaped-fn [parser n]
-      (debug-rule "s_double_escaped", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "s_double_escaped"
+      (fn s_double_escaped-fn [parser n]
+        (when DEBUG (debug-rule "s_double_escaped", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      (p/rep parser
        0,
       nil,
@@ -2059,29 +2314,33 @@
       [l_empty, n, "flow-in"]
     ),
     [s_flow_line_prefix, n]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [113]
 ;; s-double-break(n) ::=
 ;;   s-double-escaped(n) | s-flow-folded(n)
 (def s_double_break
-  (name* "s_double_break"
-    (fn s_double_break-fn [parser n]
-      (debug-rule "s_double_break", n)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "s_double_break"
+      (fn s_double_break-fn [parser n]
+        (when DEBUG (debug-rule "s_double_break", n))
+        (or (get @cache [n])
+            (let [body
+  (p/any parser
      [s_double_escaped, n],
     [s_flow_folded, n]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [114]
 ;; nb-ns-double-in-line ::=
 ;;   ( s-white* ns-double-char )*
 (def nb_ns_double_in_line
-  (name* "nb_ns_double_in_line"
-    (fn nb_ns_double_in_line-fn [parser]
-      (debug-rule "nb_ns_double_in_line")
+  (let [body (delay
+               (let [parser nil]
     (p/rep2 parser
      0,
     nil,
@@ -2092,19 +2351,25 @@
         s_white
       ),
       ns_double_char
-    )))
-    nil))
-
+    ))))]
+    (name* "nb_ns_double_in_line"
+      (fn nb_ns_double_in_line-fn [parser]
+        (when DEBUG (debug-rule "nb_ns_double_in_line"))
+        @body)
+      nil)))
 ;; [115]
 ;; s-double-next-line(n) ::=
 ;;   s-double-break(n)
 ;;   ( ns-double-char nb-ns-double-in-line
 ;;   ( s-double-next-line(n) | s-white* ) )?
 (def s_double_next_line
-  (name* "s_double_next_line"
-    (fn s_double_next_line-fn [parser n]
-      (debug-rule "s_double_next_line", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "s_double_next_line"
+      (fn s_double_next_line-fn [parser n]
+        (when DEBUG (debug-rule "s_double_next_line", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      [s_double_break, n],
     (p/rep parser
        0,
@@ -2121,18 +2386,22 @@
           )
         )
       ))
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [116]
 ;; nb-double-multi-line(n) ::=
 ;;   nb-ns-double-in-line
 ;;   ( s-double-next-line(n) | s-white* )
 (def nb_double_multi_line
-  (name* "nb_double_multi_line"
-    (fn nb_double_multi_line-fn [parser n]
-      (debug-rule "nb_double_multi_line", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "nb_double_multi_line"
+      (fn nb_double_multi_line-fn [parser n]
+        (when DEBUG (debug-rule "nb_double_multi_line", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      nb_ns_double_in_line,
     (p/any parser
        [s_double_next_line, n],
@@ -2142,16 +2411,16 @@
         s_white
       )
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [117]
 ;; c-quoted-quote ::=
 ;;   ''' '''
 (def c_quoted_quote
-  (name* "c_quoted_quote"
-    (fn c_quoted_quote-fn [parser]
-      (debug-rule "c_quoted_quote")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "'"
@@ -2159,16 +2428,18 @@
     (p/chr parser
        "'"
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_quoted_quote"
+      (fn c_quoted_quote-fn [parser]
+        (when DEBUG (debug-rule "c_quoted_quote"))
+        @body)
+      nil)))
 ;; [118]
 ;; nb-single-char ::=
 ;;   c-quoted-quote | ( nb-json - ''' )
 (def nb_single_char
-  (name* "nb_single_char"
-    (fn nb_single_char-fn [parser]
-      (debug-rule "nb_single_char")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      c_quoted_quote,
     (p/but parser
@@ -2177,31 +2448,39 @@
          "'"
       )
     )
-  ))
-    nil))
-
+  )))]
+    (name* "nb_single_char"
+      (fn nb_single_char-fn [parser]
+        (when DEBUG (debug-rule "nb_single_char"))
+        @body)
+      nil)))
 ;; [119]
 ;; ns-single-char ::=
 ;;   nb-single-char - s-white
 (def ns_single_char
-  (name* "ns_single_char"
-    (fn ns_single_char-fn [parser]
-      (debug-rule "ns_single_char")
+  (let [body (delay
+               (let [parser nil]
     (p/but parser
      nb_single_char,
     s_white
-  ))
-    nil))
-
+  )))]
+    (name* "ns_single_char"
+      (fn ns_single_char-fn [parser]
+        (when DEBUG (debug-rule "ns_single_char"))
+        @body)
+      nil)))
 ;; [120]
 ;; c-single-quoted(n,c) ::=
 ;;   ''' nb-single-text(n,c)
 ;;   '''
 (def c_single_quoted
-  (name* "c_single_quoted"
-    (fn c_single_quoted-fn [parser n c]
-      (debug-rule "c_single_quoted", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_single_quoted"
+      (fn c_single_quoted-fn [parser n c]
+        (when DEBUG (debug-rule "c_single_quoted", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      (p/chr parser
        "'"
     ),
@@ -2209,9 +2488,10 @@
     (p/chr parser
        "'"
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [121]
 ;; nb-single-text(n,c) ::=
 ;;   ( c = flow-out => nb-single-multi-line(n) )
@@ -2219,10 +2499,13 @@
 ;;   ( c = block-key => nb-single-one-line )
 ;;   ( c = flow-key => nb-single-one-line )
 (def nb_single_text
-  (name* "nb_single_text"
-    (fn nb_single_text-fn [parser n c]
-      (debug-rule "nb_single_text", n, c)
-    (p/case* parser
+  (let [cache (volatile! {})]
+    (name* "nb_single_text"
+      (fn nb_single_text-fn [parser n c]
+        (when DEBUG (debug-rule "nb_single_text", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/case* parser
      c,
     {
       "block-key" nb_single_one_line,
@@ -2230,26 +2513,28 @@
       "flow-key" nb_single_one_line,
       "flow-out" [nb_single_multi_line, n],
     }
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [122]
 ;; nb-single-one-line ::=
 ;;   nb-single-char*
 (def nb_single_one_line
-  (name* "nb_single_one_line"
-    (fn nb_single_one_line-fn [parser]
-      (debug-rule "nb_single_one_line")
-    (p/rep2 parser 0, nil, nb_single_char))
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    (p/rep2 parser 0, nil, nb_single_char)))]
+    (name* "nb_single_one_line"
+      (fn nb_single_one_line-fn [parser]
+        (when DEBUG (debug-rule "nb_single_one_line"))
+        @body)
+      nil)))
 ;; [123]
 ;; nb-ns-single-in-line ::=
 ;;   ( s-white* ns-single-char )*
 (def nb_ns_single_in_line
-  (name* "nb_ns_single_in_line"
-    (fn nb_ns_single_in_line-fn [parser]
-      (debug-rule "nb_ns_single_in_line")
+  (let [body (delay
+               (let [parser nil]
     (p/rep2 parser
      0,
     nil,
@@ -2260,19 +2545,25 @@
         s_white
       ),
       ns_single_char
-    )))
-    nil))
-
+    ))))]
+    (name* "nb_ns_single_in_line"
+      (fn nb_ns_single_in_line-fn [parser]
+        (when DEBUG (debug-rule "nb_ns_single_in_line"))
+        @body)
+      nil)))
 ;; [124]
 ;; s-single-next-line(n) ::=
 ;;   s-flow-folded(n)
 ;;   ( ns-single-char nb-ns-single-in-line
 ;;   ( s-single-next-line(n) | s-white* ) )?
 (def s_single_next_line
-  (name* "s_single_next_line"
-    (fn s_single_next_line-fn [parser n]
-      (debug-rule "s_single_next_line", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "s_single_next_line"
+      (fn s_single_next_line-fn [parser n]
+        (when DEBUG (debug-rule "s_single_next_line", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      [s_flow_folded, n],
     (p/rep parser
        0,
@@ -2289,18 +2580,22 @@
           )
         )
       ))
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [125]
 ;; nb-single-multi-line(n) ::=
 ;;   nb-ns-single-in-line
 ;;   ( s-single-next-line(n) | s-white* )
 (def nb_single_multi_line
-  (name* "nb_single_multi_line"
-    (fn nb_single_multi_line-fn [parser n]
-      (debug-rule "nb_single_multi_line", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "nb_single_multi_line"
+      (fn nb_single_multi_line-fn [parser n]
+        (when DEBUG (debug-rule "nb_single_multi_line", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      nb_ns_single_in_line,
     (p/any parser
        [s_single_next_line, n],
@@ -2310,19 +2605,23 @@
         s_white
       )
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [126]
 ;; ns-plain-first(c) ::=
 ;;   ( ns-char - c-indicator )
 ;;   | ( ( '?' | ':' | '-' )
 ;;   <followed_by_an_ns-plain-safe(c)> )
 (def ns_plain_first
-  (name* "ns_plain_first"
-    (fn ns_plain_first-fn [parser c]
-      (debug-rule "ns_plain_first", c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "ns_plain_first"
+      (fn ns_plain_first-fn [parser c]
+        (when DEBUG (debug-rule "ns_plain_first", c))
+        (or (get @cache [c])
+            (let [body
+  (p/any parser
      (p/but parser
        ns_char,
       c_indicator
@@ -2344,9 +2643,10 @@
         [ns_plain_safe, c]
       )
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [c] body)
+              body)))
+      nil)))
 ;; [127]
 ;; ns-plain-safe(c) ::=
 ;;   ( c = flow-out => ns-plain-safe-out )
@@ -2354,10 +2654,13 @@
 ;;   ( c = block-key => ns-plain-safe-out )
 ;;   ( c = flow-key => ns-plain-safe-in )
 (def ns_plain_safe
-  (name* "ns_plain_safe"
-    (fn ns_plain_safe-fn [parser c]
-      (debug-rule "ns_plain_safe", c)
-    (p/case* parser
+  (let [cache (volatile! {})]
+    (name* "ns_plain_safe"
+      (fn ns_plain_safe-fn [parser c]
+        (when DEBUG (debug-rule "ns_plain_safe", c))
+        (or (get @cache [c])
+            (let [body
+  (p/case* parser
      c,
     {
       "block-key" ns_plain_safe_out,
@@ -2365,42 +2668,50 @@
       "flow-key" ns_plain_safe_in,
       "flow-out" ns_plain_safe_out,
     }
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [c] body)
+              body)))
+      nil)))
 ;; [128]
 ;; ns-plain-safe-out ::=
 ;;   ns-char
 (def ns_plain_safe_out
-  (name* "ns_plain_safe_out"
-    (fn ns_plain_safe_out-fn [parser]
-      (debug-rule "ns_plain_safe_out")
-    ns_char)
-    nil))
-
+  (let [body (delay
+               (let [parser nil]
+    ns_char))]
+    (name* "ns_plain_safe_out"
+      (fn ns_plain_safe_out-fn [parser]
+        (when DEBUG (debug-rule "ns_plain_safe_out"))
+        @body)
+      nil)))
 ;; [129]
 ;; ns-plain-safe-in ::=
 ;;   ns-char - c-flow-indicator
 (def ns_plain_safe_in
-  (name* "ns_plain_safe_in"
-    (fn ns_plain_safe_in-fn [parser]
-      (debug-rule "ns_plain_safe_in")
+  (let [body (delay
+               (let [parser nil]
     (p/but parser
      ns_char,
     c_flow_indicator
-  ))
-    nil))
-
+  )))]
+    (name* "ns_plain_safe_in"
+      (fn ns_plain_safe_in-fn [parser]
+        (when DEBUG (debug-rule "ns_plain_safe_in"))
+        @body)
+      nil)))
 ;; [130]
 ;; ns-plain-char(c) ::=
 ;;   ( ns-plain-safe(c) - ':' - '#' )
 ;;   | ( <an_ns-char_preceding> '#' )
 ;;   | ( ':' <followed_by_an_ns-plain-safe(c)> )
 (def ns_plain_char
-  (name* "ns_plain_char"
-    (fn ns_plain_char-fn [parser c]
-      (debug-rule "ns_plain_char", c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "ns_plain_char"
+      (fn ns_plain_char-fn [parser c]
+        (when DEBUG (debug-rule "ns_plain_char", c))
+        (or (get @cache [c])
+            (let [body
+  (p/any parser
      (p/but parser
        [ns_plain_safe, c],
       (p/chr parser
@@ -2428,9 +2739,10 @@
         [ns_plain_safe, c]
       )
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [c] body)
+              body)))
+      nil)))
 ;; [131]
 ;; ns-plain(n,c) ::=
 ;;   ( c = flow-out => ns-plain-multi-line(n,c) )
@@ -2438,10 +2750,13 @@
 ;;   ( c = block-key => ns-plain-one-line(c) )
 ;;   ( c = flow-key => ns-plain-one-line(c) )
 (def ns_plain
-  (name* "ns_plain"
-    (fn ns_plain-fn [parser n c]
-      (debug-rule "ns_plain", n, c)
-    (p/case* parser
+  (let [cache (volatile! {})]
+    (name* "ns_plain"
+      (fn ns_plain-fn [parser n c]
+        (when DEBUG (debug-rule "ns_plain", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/case* parser
      c,
     {
       "block-key" [ns_plain_one_line, c],
@@ -2449,18 +2764,22 @@
       "flow-key" [ns_plain_one_line, c],
       "flow-out" [ns_plain_multi_line, n, c],
     }
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [132]
 ;; nb-ns-plain-in-line(c) ::=
 ;;   ( s-white*
 ;;   ns-plain-char(c) )*
 (def nb_ns_plain_in_line
-  (name* "nb_ns_plain_in_line"
-    (fn nb_ns_plain_in_line-fn [parser c]
-      (debug-rule "nb_ns_plain_in_line", c)
-    (p/rep2 parser
+  (let [cache (volatile! {})]
+    (name* "nb_ns_plain_in_line"
+      (fn nb_ns_plain_in_line-fn [parser c]
+        (when DEBUG (debug-rule "nb_ns_plain_in_line", c))
+        (or (get @cache [c])
+            (let [body
+  (p/rep2 parser
      0,
     nil,
     (p/all parser
@@ -2470,56 +2789,69 @@
         s_white
       ),
       [ns_plain_char, c]
-    )))
-    nil))
-
+    ))]
+              (vswap! cache assoc [c] body)
+              body)))
+      nil)))
 ;; [133]
 ;; ns-plain-one-line(c) ::=
 ;;   ns-plain-first(c)
 ;;   nb-ns-plain-in-line(c)
 (def ns_plain_one_line
-  (name* "ns_plain_one_line"
-    (fn ns_plain_one_line-fn [parser c]
-      (debug-rule "ns_plain_one_line", c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "ns_plain_one_line"
+      (fn ns_plain_one_line-fn [parser c]
+        (when DEBUG (debug-rule "ns_plain_one_line", c))
+        (or (get @cache [c])
+            (let [body
+  (p/all parser
      [ns_plain_first, c],
     [nb_ns_plain_in_line, c]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [c] body)
+              body)))
+      nil)))
 ;; [134]
 ;; s-ns-plain-next-line(n,c) ::=
 ;;   s-flow-folded(n)
 ;;   ns-plain-char(c) nb-ns-plain-in-line(c)
 (def s_ns_plain_next_line
-  (name* "s_ns_plain_next_line"
-    (fn s_ns_plain_next_line-fn [parser n c]
-      (debug-rule "s_ns_plain_next_line", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "s_ns_plain_next_line"
+      (fn s_ns_plain_next_line-fn [parser n c]
+        (when DEBUG (debug-rule "s_ns_plain_next_line", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      [s_flow_folded, n],
     [ns_plain_char, c],
     [nb_ns_plain_in_line, c]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [135]
 ;; ns-plain-multi-line(n,c) ::=
 ;;   ns-plain-one-line(c)
 ;;   s-ns-plain-next-line(n,c)*
 (def ns_plain_multi_line
-  (name* "ns_plain_multi_line"
-    (fn ns_plain_multi_line-fn [parser n c]
-      (debug-rule "ns_plain_multi_line", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "ns_plain_multi_line"
+      (fn ns_plain_multi_line-fn [parser n c]
+        (when DEBUG (debug-rule "ns_plain_multi_line", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      [ns_plain_one_line, c],
     (p/rep parser
        0,
       nil,
       [s_ns_plain_next_line, n, c]
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [136]
 ;; in-flow(c) ::=
 ;;   ( c = flow-out => flow-in )
@@ -2529,7 +2861,7 @@
 (def in_flow
   (name* "in_flow"
     (fn in_flow-fn [parser c]
-      (debug-rule "in_flow", c)
+      (when DEBUG (debug-rule "in_flow", c))
     (p/flip parser
      c,
     {
@@ -2546,10 +2878,13 @@
 ;;   '[' s-separate(n,c)?
 ;;   ns-s-flow-seq-entries(n,in-flow(c))? ']'
 (def c_flow_sequence
-  (name* "c_flow_sequence"
-    (fn c_flow_sequence-fn [parser n c]
-      (debug-rule "c_flow_sequence", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_flow_sequence"
+      (fn c_flow_sequence-fn [parser n c]
+        (when DEBUG (debug-rule "c_flow_sequence", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      (p/chr parser
        "["
     ),
@@ -2566,9 +2901,10 @@
     (p/chr parser
        "]"
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [138]
 ;; ns-s-flow-seq-entries(n,c) ::=
 ;;   ns-flow-seq-entry(n,c)
@@ -2576,10 +2912,13 @@
 ;;   ( ',' s-separate(n,c)?
 ;;   ns-s-flow-seq-entries(n,c)? )?
 (def ns_s_flow_seq_entries
-  (name* "ns_s_flow_seq_entries"
-    (fn ns_s_flow_seq_entries-fn [parser n c]
-      (debug-rule "ns_s_flow_seq_entries", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "ns_s_flow_seq_entries"
+      (fn ns_s_flow_seq_entries-fn [parser n c]
+        (when DEBUG (debug-rule "ns_s_flow_seq_entries", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      [ns_flow_seq_entry, n, c],
     (p/rep parser
        0,
@@ -2604,31 +2943,39 @@
           [ns_s_flow_seq_entries, n, c]
         )
       ))
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [139]
 ;; ns-flow-seq-entry(n,c) ::=
 ;;   ns-flow-pair(n,c) | ns-flow-node(n,c)
 (def ns_flow_seq_entry
-  (name* "ns_flow_seq_entry"
-    (fn ns_flow_seq_entry-fn [parser n c]
-      (debug-rule "ns_flow_seq_entry", n, c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "ns_flow_seq_entry"
+      (fn ns_flow_seq_entry-fn [parser n c]
+        (when DEBUG (debug-rule "ns_flow_seq_entry", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/any parser
      [ns_flow_pair, n, c],
     [ns_flow_node, n, c]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [140]
 ;; c-flow-mapping(n,c) ::=
 ;;   '{' s-separate(n,c)?
 ;;   ns-s-flow-map-entries(n,in-flow(c))? '}'
 (def c_flow_mapping
-  (name* "c_flow_mapping"
-    (fn c_flow_mapping-fn [parser n c]
-      (debug-rule "c_flow_mapping", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_flow_mapping"
+      (fn c_flow_mapping-fn [parser n c]
+        (when DEBUG (debug-rule "c_flow_mapping", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      (p/chr parser
        "\u007B"
     ),
@@ -2645,9 +2992,10 @@
     (p/chr parser
        "\u007D"
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [141]
 ;; ns-s-flow-map-entries(n,c) ::=
 ;;   ns-flow-map-entry(n,c)
@@ -2655,10 +3003,13 @@
 ;;   ( ',' s-separate(n,c)?
 ;;   ns-s-flow-map-entries(n,c)? )?
 (def ns_s_flow_map_entries
-  (name* "ns_s_flow_map_entries"
-    (fn ns_s_flow_map_entries-fn [parser n c]
-      (debug-rule "ns_s_flow_map_entries", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "ns_s_flow_map_entries"
+      (fn ns_s_flow_map_entries-fn [parser n c]
+        (when DEBUG (debug-rule "ns_s_flow_map_entries", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      [ns_flow_map_entry, n, c],
     (p/rep parser
        0,
@@ -2683,19 +3034,23 @@
           [ns_s_flow_map_entries, n, c]
         )
       ))
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [142]
 ;; ns-flow-map-entry(n,c) ::=
 ;;   ( '?' s-separate(n,c)
 ;;   ns-flow-map-explicit-entry(n,c) )
 ;;   | ns-flow-map-implicit-entry(n,c)
 (def ns_flow_map_entry
-  (name* "ns_flow_map_entry"
-    (fn ns_flow_map_entry-fn [parser n c]
-      (debug-rule "ns_flow_map_entry", n, c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "ns_flow_map_entry"
+      (fn ns_flow_map_entry-fn [parser n c]
+        (when DEBUG (debug-rule "ns_flow_map_entry", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/any parser
      (p/all parser
        (p/chr parser
          "?"
@@ -2712,43 +3067,52 @@
       [ns_flow_map_explicit_entry, n, c]
     ),
     [ns_flow_map_implicit_entry, n, c]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [143]
 ;; ns-flow-map-explicit-entry(n,c) ::=
 ;;   ns-flow-map-implicit-entry(n,c)
 ;;   | ( e-node
 ;;   e-node )
 (def ns_flow_map_explicit_entry
-  (name* "ns_flow_map_explicit_entry"
-    (fn ns_flow_map_explicit_entry-fn [parser n c]
-      (debug-rule "ns_flow_map_explicit_entry", n, c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "ns_flow_map_explicit_entry"
+      (fn ns_flow_map_explicit_entry-fn [parser n c]
+        (when DEBUG (debug-rule "ns_flow_map_explicit_entry", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/any parser
      [ns_flow_map_implicit_entry, n, c],
     (p/all parser
        e_node,
       e_node
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [144]
 ;; ns-flow-map-implicit-entry(n,c) ::=
 ;;   ns-flow-map-yaml-key-entry(n,c)
 ;;   | c-ns-flow-map-empty-key-entry(n,c)
 ;;   | c-ns-flow-map-json-key-entry(n,c)
 (def ns_flow_map_implicit_entry
-  (name* "ns_flow_map_implicit_entry"
-    (fn ns_flow_map_implicit_entry-fn [parser n c]
-      (debug-rule "ns_flow_map_implicit_entry", n, c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "ns_flow_map_implicit_entry"
+      (fn ns_flow_map_implicit_entry-fn [parser n c]
+        (when DEBUG (debug-rule "ns_flow_map_implicit_entry", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/any parser
      [ns_flow_map_yaml_key_entry, n, c],
     [c_ns_flow_map_empty_key_entry, n, c],
     [c_ns_flow_map_json_key_entry, n, c]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [145]
 ;; ns-flow-map-yaml-key-entry(n,c) ::=
 ;;   ns-flow-yaml-node(n,c)
@@ -2756,10 +3120,13 @@
 ;;   c-ns-flow-map-separate-value(n,c) )
 ;;   | e-node )
 (def ns_flow_map_yaml_key_entry
-  (name* "ns_flow_map_yaml_key_entry"
-    (fn ns_flow_map_yaml_key_entry-fn [parser n c]
-      (debug-rule "ns_flow_map_yaml_key_entry", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "ns_flow_map_yaml_key_entry"
+      (fn ns_flow_map_yaml_key_entry-fn [parser n c]
+        (when DEBUG (debug-rule "ns_flow_map_yaml_key_entry", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      [ns_flow_yaml_node, n, c],
     (p/any parser
        (p/all parser
@@ -2772,33 +3139,41 @@
       ),
       e_node
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [146]
 ;; c-ns-flow-map-empty-key-entry(n,c) ::=
 ;;   e-node
 ;;   c-ns-flow-map-separate-value(n,c)
 (def c_ns_flow_map_empty_key_entry
-  (name* "c_ns_flow_map_empty_key_entry"
-    (fn c_ns_flow_map_empty_key_entry-fn [parser n c]
-      (debug-rule "c_ns_flow_map_empty_key_entry", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_ns_flow_map_empty_key_entry"
+      (fn c_ns_flow_map_empty_key_entry-fn [parser n c]
+        (when DEBUG (debug-rule "c_ns_flow_map_empty_key_entry", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      e_node,
     [c_ns_flow_map_separate_value, n, c]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [147]
 ;; c-ns-flow-map-separate-value(n,c) ::=
 ;;   ':' <not_followed_by_an_ns-plain-safe(c)>
 ;;   ( ( s-separate(n,c) ns-flow-node(n,c) )
 ;;   | e-node )
 (def c_ns_flow_map_separate_value
-  (name* "c_ns_flow_map_separate_value"
-    (fn c_ns_flow_map_separate_value-fn [parser n c]
-      (debug-rule "c_ns_flow_map_separate_value", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_ns_flow_map_separate_value"
+      (fn c_ns_flow_map_separate_value-fn [parser n c]
+        (when DEBUG (debug-rule "c_ns_flow_map_separate_value", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      (p/chr parser
        ":"
     ),
@@ -2813,9 +3188,10 @@
       ),
       e_node
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [148]
 ;; c-ns-flow-map-json-key-entry(n,c) ::=
 ;;   c-flow-json-node(n,c)
@@ -2823,10 +3199,13 @@
 ;;   c-ns-flow-map-adjacent-value(n,c) )
 ;;   | e-node )
 (def c_ns_flow_map_json_key_entry
-  (name* "c_ns_flow_map_json_key_entry"
-    (fn c_ns_flow_map_json_key_entry-fn [parser n c]
-      (debug-rule "c_ns_flow_map_json_key_entry", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_ns_flow_map_json_key_entry"
+      (fn c_ns_flow_map_json_key_entry-fn [parser n c]
+        (when DEBUG (debug-rule "c_ns_flow_map_json_key_entry", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      [c_flow_json_node, n, c],
     (p/any parser
        (p/all parser
@@ -2839,9 +3218,10 @@
       ),
       e_node
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [149]
 ;; c-ns-flow-map-adjacent-value(n,c) ::=
 ;;   ':' ( (
@@ -2849,10 +3229,13 @@
 ;;   ns-flow-node(n,c) )
 ;;   | e-node )
 (def c_ns_flow_map_adjacent_value
-  (name* "c_ns_flow_map_adjacent_value"
-    (fn c_ns_flow_map_adjacent_value-fn [parser n c]
-      (debug-rule "c_ns_flow_map_adjacent_value", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_ns_flow_map_adjacent_value"
+      (fn c_ns_flow_map_adjacent_value-fn [parser n c]
+        (when DEBUG (debug-rule "c_ns_flow_map_adjacent_value", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      (p/chr parser
        ":"
     ),
@@ -2867,19 +3250,23 @@
       ),
       e_node
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [150]
 ;; ns-flow-pair(n,c) ::=
 ;;   ( '?' s-separate(n,c)
 ;;   ns-flow-map-explicit-entry(n,c) )
 ;;   | ns-flow-pair-entry(n,c)
 (def ns_flow_pair
-  (name* "ns_flow_pair"
-    (fn ns_flow_pair-fn [parser n c]
-      (debug-rule "ns_flow_pair", n, c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "ns_flow_pair"
+      (fn ns_flow_pair-fn [parser n c]
+        (when DEBUG (debug-rule "ns_flow_pair", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/any parser
      (p/all parser
        (p/chr parser
          "?"
@@ -2896,63 +3283,79 @@
       [ns_flow_map_explicit_entry, n, c]
     ),
     [ns_flow_pair_entry, n, c]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [151]
 ;; ns-flow-pair-entry(n,c) ::=
 ;;   ns-flow-pair-yaml-key-entry(n,c)
 ;;   | c-ns-flow-map-empty-key-entry(n,c)
 ;;   | c-ns-flow-pair-json-key-entry(n,c)
 (def ns_flow_pair_entry
-  (name* "ns_flow_pair_entry"
-    (fn ns_flow_pair_entry-fn [parser n c]
-      (debug-rule "ns_flow_pair_entry", n, c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "ns_flow_pair_entry"
+      (fn ns_flow_pair_entry-fn [parser n c]
+        (when DEBUG (debug-rule "ns_flow_pair_entry", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/any parser
      [ns_flow_pair_yaml_key_entry, n, c],
     [c_ns_flow_map_empty_key_entry, n, c],
     [c_ns_flow_pair_json_key_entry, n, c]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [152]
 ;; ns-flow-pair-yaml-key-entry(n,c) ::=
 ;;   ns-s-implicit-yaml-key(flow-key)
 ;;   c-ns-flow-map-separate-value(n,c)
 (def ns_flow_pair_yaml_key_entry
-  (name* "ns_flow_pair_yaml_key_entry"
-    (fn ns_flow_pair_yaml_key_entry-fn [parser n c]
-      (debug-rule "ns_flow_pair_yaml_key_entry", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "ns_flow_pair_yaml_key_entry"
+      (fn ns_flow_pair_yaml_key_entry-fn [parser n c]
+        (when DEBUG (debug-rule "ns_flow_pair_yaml_key_entry", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      [ns_s_implicit_yaml_key, "flow-key"],
     [c_ns_flow_map_separate_value, n, c]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [153]
 ;; c-ns-flow-pair-json-key-entry(n,c) ::=
 ;;   c-s-implicit-json-key(flow-key)
 ;;   c-ns-flow-map-adjacent-value(n,c)
 (def c_ns_flow_pair_json_key_entry
-  (name* "c_ns_flow_pair_json_key_entry"
-    (fn c_ns_flow_pair_json_key_entry-fn [parser n c]
-      (debug-rule "c_ns_flow_pair_json_key_entry", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_ns_flow_pair_json_key_entry"
+      (fn c_ns_flow_pair_json_key_entry-fn [parser n c]
+        (when DEBUG (debug-rule "c_ns_flow_pair_json_key_entry", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      [c_s_implicit_json_key, "flow-key"],
     [c_ns_flow_map_adjacent_value, n, c]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [154]
 ;; ns-s-implicit-yaml-key(c) ::=
 ;;   ns-flow-yaml-node(n/a,c)
 ;;   s-separate-in-line?
 ;;   <at_most_1024_characters_altogether>
 (def ns_s_implicit_yaml_key
-  (name* "ns_s_implicit_yaml_key"
-    (fn ns_s_implicit_yaml_key-fn [parser c]
-      (debug-rule "ns_s_implicit_yaml_key", c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "ns_s_implicit_yaml_key"
+      (fn ns_s_implicit_yaml_key-fn [parser c]
+        (when DEBUG (debug-rule "ns_s_implicit_yaml_key", c))
+        (or (get @cache [c])
+            (let [body
+  (p/all parser
      (p/max* parser
        1024
     ),
@@ -2962,19 +3365,23 @@
       1,
       s_separate_in_line
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [c] body)
+              body)))
+      nil)))
 ;; [155]
 ;; c-s-implicit-json-key(c) ::=
 ;;   c-flow-json-node(n/a,c)
 ;;   s-separate-in-line?
 ;;   <at_most_1024_characters_altogether>
 (def c_s_implicit_json_key
-  (name* "c_s_implicit_json_key"
-    (fn c_s_implicit_json_key-fn [parser c]
-      (debug-rule "c_s_implicit_json_key", c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_s_implicit_json_key"
+      (fn c_s_implicit_json_key-fn [parser c]
+        (when DEBUG (debug-rule "c_s_implicit_json_key", c))
+        (or (get @cache [c])
+            (let [body
+  (p/all parser
      (p/max* parser
        1024
     ),
@@ -2984,48 +3391,61 @@
       1,
       s_separate_in_line
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [c] body)
+              body)))
+      nil)))
 ;; [156]
 ;; ns-flow-yaml-content(n,c) ::=
 ;;   ns-plain(n,c)
 (def ns_flow_yaml_content
-  (name* "ns_flow_yaml_content"
-    (fn ns_flow_yaml_content-fn [parser n c]
-      (debug-rule "ns_flow_yaml_content", n, c)
-    [ns_plain, n, c])
-    nil))
-
+  (let [cache (volatile! {})]
+    (name* "ns_flow_yaml_content"
+      (fn ns_flow_yaml_content-fn [parser n c]
+        (when DEBUG (debug-rule "ns_flow_yaml_content", n, c))
+        (or (get @cache [n c])
+            (let [body
+  [ns_plain, n, c]]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [157]
 ;; c-flow-json-content(n,c) ::=
 ;;   c-flow-sequence(n,c) | c-flow-mapping(n,c)
 ;;   | c-single-quoted(n,c) | c-double-quoted(n,c)
 (def c_flow_json_content
-  (name* "c_flow_json_content"
-    (fn c_flow_json_content-fn [parser n c]
-      (debug-rule "c_flow_json_content", n, c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "c_flow_json_content"
+      (fn c_flow_json_content-fn [parser n c]
+        (when DEBUG (debug-rule "c_flow_json_content", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/any parser
      [c_flow_sequence, n, c],
     [c_flow_mapping, n, c],
     [c_single_quoted, n, c],
     [c_double_quoted, n, c]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [158]
 ;; ns-flow-content(n,c) ::=
 ;;   ns-flow-yaml-content(n,c) | c-flow-json-content(n,c)
 (def ns_flow_content
-  (name* "ns_flow_content"
-    (fn ns_flow_content-fn [parser n c]
-      (debug-rule "ns_flow_content", n, c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "ns_flow_content"
+      (fn ns_flow_content-fn [parser n c]
+        (when DEBUG (debug-rule "ns_flow_content", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/any parser
      [ns_flow_yaml_content, n, c],
     [c_flow_json_content, n, c]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [159]
 ;; ns-flow-yaml-node(n,c) ::=
 ;;   c-ns-alias-node
@@ -3035,10 +3455,13 @@
 ;;   ns-flow-yaml-content(n,c) )
 ;;   | e-scalar ) )
 (def ns_flow_yaml_node
-  (name* "ns_flow_yaml_node"
-    (fn ns_flow_yaml_node-fn [parser n c]
-      (debug-rule "ns_flow_yaml_node", n, c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "ns_flow_yaml_node"
+      (fn ns_flow_yaml_node-fn [parser n c]
+        (when DEBUG (debug-rule "ns_flow_yaml_node", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/any parser
      c_ns_alias_node,
     [ns_flow_yaml_content, n, c],
     (p/all parser
@@ -3051,19 +3474,23 @@
         e_scalar
       )
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [160]
 ;; c-flow-json-node(n,c) ::=
 ;;   ( c-ns-properties(n,c)
 ;;   s-separate(n,c) )?
 ;;   c-flow-json-content(n,c)
 (def c_flow_json_node
-  (name* "c_flow_json_node"
-    (fn c_flow_json_node-fn [parser n c]
-      (debug-rule "c_flow_json_node", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_flow_json_node"
+      (fn c_flow_json_node-fn [parser n c]
+        (when DEBUG (debug-rule "c_flow_json_node", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      (p/rep parser
        0,
       1,
@@ -3072,9 +3499,10 @@
         [s_separate, n, c]
       )),
     [c_flow_json_content, n, c]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [161]
 ;; ns-flow-node(n,c) ::=
 ;;   c-ns-alias-node
@@ -3084,10 +3512,13 @@
 ;;   ns-flow-content(n,c) )
 ;;   | e-scalar ) )
 (def ns_flow_node
-  (name* "ns_flow_node"
-    (fn ns_flow_node-fn [parser n c]
-      (debug-rule "ns_flow_node", n, c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "ns_flow_node"
+      (fn ns_flow_node-fn [parser n c]
+        (when DEBUG (debug-rule "ns_flow_node", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/any parser
      c_ns_alias_node,
     [ns_flow_content, n, c],
     (p/all parser
@@ -3100,9 +3531,10 @@
         e_scalar
       )
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [162]
 ;; c-b-block-header(m,t) ::=
 ;;   ( ( c-indentation-indicator(m)
@@ -3111,10 +3543,13 @@
 ;;   c-indentation-indicator(m) ) )
 ;;   s-b-comment
 (def c_b_block_header
-  (name* "c_b_block_header"
-    (fn c_b_block_header-fn [parser n]
-      (debug-rule "c_b_block_header", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_b_block_header"
+      (fn c_b_block_header-fn [parser n]
+        (when DEBUG (debug-rule "c_b_block_header", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      (p/any parser
        (p/all parser
          [c_indentation_indicator, n],
@@ -3142,18 +3577,22 @@
       )
     ),
     s_b_comment
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [163]
 ;; c-indentation-indicator(m) ::=
 ;;   ( ns-dec-digit => m = ns-dec-digit - x:30 )
 ;;   ( <empty> => m = auto-detect() )
 (def c_indentation_indicator
-  (name* "c_indentation_indicator"
-    (fn c_indentation_indicator-fn [parser n]
-      (debug-rule "c_indentation_indicator", n)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "c_indentation_indicator"
+      (fn c_indentation_indicator-fn [parser n]
+        (when DEBUG (debug-rule "c_indentation_indicator", n))
+        (or (get @cache [n])
+            (let [body
+  (p/any parser
      (p/if* parser
        (p/rng parser
          "\u0031",
@@ -3173,18 +3612,18 @@
         [auto_detect, n]
       )
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [164]
 ;; c-chomping-indicator(t) ::=
 ;;   ( '-' => t = strip )
 ;;   ( '+' => t = keep )
 ;;   ( <empty> => t = clip )
 (def c_chomping_indicator
-  (name* "c_chomping_indicator"
-    (fn c_chomping_indicator-fn [parser]
-      (debug-rule "c_chomping_indicator")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      (p/if* parser
        (p/chr parser
@@ -3211,56 +3650,70 @@
         "clip"
       )
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_chomping_indicator"
+      (fn c_chomping_indicator-fn [parser]
+        (when DEBUG (debug-rule "c_chomping_indicator"))
+        @body)
+      nil)))
 ;; [165]
 ;; b-chomped-last(t) ::=
 ;;   ( t = strip => b-non-content | <end_of_file> )
 ;;   ( t = clip => b-as-line-feed | <end_of_file> )
 ;;   ( t = keep => b-as-line-feed | <end_of_file> )
 (def b_chomped_last
-  (name* "b_chomped_last"
-    (fn b_chomped_last-fn [parser t]
-      (debug-rule "b_chomped_last", t)
-    (p/case* parser
+  (let [cache (volatile! {})]
+    (name* "b_chomped_last"
+      (fn b_chomped_last-fn [parser t]
+        (when DEBUG (debug-rule "b_chomped_last", t))
+        (or (get @cache [t])
+            (let [body
+  (p/case* parser
      t,
     {
       "clip" (p/any parser b_as_line_feed, (p/end-of-stream parser) ),
       "keep" (p/any parser b_as_line_feed, (p/end-of-stream parser) ),
       "strip" (p/any parser b_non_content, (p/end-of-stream parser) ),
     }
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [t] body)
+              body)))
+      nil)))
 ;; [166]
 ;; l-chomped-empty(n,t) ::=
 ;;   ( t = strip => l-strip-empty(n) )
 ;;   ( t = clip => l-strip-empty(n) )
 ;;   ( t = keep => l-keep-empty(n) )
 (def l_chomped_empty
-  (name* "l_chomped_empty"
-    (fn l_chomped_empty-fn [parser n t]
-      (debug-rule "l_chomped_empty", n, t)
-    (p/case* parser
+  (let [cache (volatile! {})]
+    (name* "l_chomped_empty"
+      (fn l_chomped_empty-fn [parser n t]
+        (when DEBUG (debug-rule "l_chomped_empty", n, t))
+        (or (get @cache [n t])
+            (let [body
+  (p/case* parser
      t,
     {
       "clip" [l_strip_empty, n],
       "keep" [l_keep_empty, n],
       "strip" [l_strip_empty, n],
     }
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n t] body)
+              body)))
+      nil)))
 ;; [167]
 ;; l-strip-empty(n) ::=
 ;;   ( s-indent(<=n) b-non-content )*
 ;;   l-trail-comments(n)?
 (def l_strip_empty
-  (name* "l_strip_empty"
-    (fn l_strip_empty-fn [parser n]
-      (debug-rule "l_strip_empty", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "l_strip_empty"
+      (fn l_strip_empty-fn [parser n]
+        (when DEBUG (debug-rule "l_strip_empty", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      (p/rep parser
        0,
       nil,
@@ -3273,18 +3726,22 @@
       1,
       [l_trail_comments, n]
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [168]
 ;; l-keep-empty(n) ::=
 ;;   l-empty(n,block-in)*
 ;;   l-trail-comments(n)?
 (def l_keep_empty
-  (name* "l_keep_empty"
-    (fn l_keep_empty-fn [parser n]
-      (debug-rule "l_keep_empty", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "l_keep_empty"
+      (fn l_keep_empty-fn [parser n]
+        (when DEBUG (debug-rule "l_keep_empty", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      (p/rep parser
        0,
       nil,
@@ -3295,19 +3752,23 @@
       1,
       [l_trail_comments, n]
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [169]
 ;; l-trail-comments(n) ::=
 ;;   s-indent(<n)
 ;;   c-nb-comment-text b-comment
 ;;   l-comment*
 (def l_trail_comments
-  (name* "l_trail_comments"
-    (fn l_trail_comments-fn [parser n]
-      (debug-rule "l_trail_comments", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "l_trail_comments"
+      (fn l_trail_comments-fn [parser n]
+        (when DEBUG (debug-rule "l_trail_comments", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      [s_indent_lt, n],
     c_nb_comment_text,
     b_comment,
@@ -3316,18 +3777,22 @@
       nil,
       l_comment
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [170]
 ;; c-l+literal(n) ::=
 ;;   '|' c-b-block-header(m,t)
 ;;   l-literal-content(n+m,t)
 (def c_l_literal
-  (name* "c_l_literal"
-    (fn c_l_literal-fn [parser n]
-      (debug-rule "c_l_literal", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_l_literal"
+      (fn c_l_literal-fn [parser n]
+        (when DEBUG (debug-rule "c_l_literal", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      (p/chr parser
        "|"
     ),
@@ -3338,18 +3803,22 @@
       )
     ), (p/t parser
     )]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [171]
 ;; l-nb-literal-text(n) ::=
 ;;   l-empty(n,block-in)*
 ;;   s-indent(n) nb-char+
 (def l_nb_literal_text
-  (name* "l_nb_literal_text"
-    (fn l_nb_literal_text-fn [parser n]
-      (debug-rule "l_nb_literal_text", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "l_nb_literal_text"
+      (fn l_nb_literal_text-fn [parser n]
+        (when DEBUG (debug-rule "l_nb_literal_text", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      (p/rep parser
        0,
       nil,
@@ -3361,23 +3830,28 @@
       nil,
       nb_char
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [172]
 ;; b-nb-literal-next(n) ::=
 ;;   b-as-line-feed
 ;;   l-nb-literal-text(n)
 (def b_nb_literal_next
-  (name* "b_nb_literal_next"
-    (fn b_nb_literal_next-fn [parser n]
-      (debug-rule "b_nb_literal_next", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "b_nb_literal_next"
+      (fn b_nb_literal_next-fn [parser n]
+        (when DEBUG (debug-rule "b_nb_literal_next", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      b_as_line_feed,
     [l_nb_literal_text, n]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [173]
 ;; l-literal-content(n,t) ::=
 ;;   ( l-nb-literal-text(n)
@@ -3385,10 +3859,13 @@
 ;;   b-chomped-last(t) )?
 ;;   l-chomped-empty(n,t)
 (def l_literal_content
-  (name* "l_literal_content"
-    (fn l_literal_content-fn [parser n t]
-      (debug-rule "l_literal_content", n, t)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "l_literal_content"
+      (fn l_literal_content-fn [parser n t]
+        (when DEBUG (debug-rule "l_literal_content", n, t))
+        (or (get @cache [n t])
+            (let [body
+  (p/all parser
      (p/rep parser
        0,
       1,
@@ -3402,18 +3879,22 @@
         [b_chomped_last, t]
       )),
     [l_chomped_empty, n, t]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n t] body)
+              body)))
+      nil)))
 ;; [174]
 ;; c-l+folded(n) ::=
 ;;   '>' c-b-block-header(m,t)
 ;;   l-folded-content(n+m,t)
 (def c_l_folded
-  (name* "c_l_folded"
-    (fn c_l_folded-fn [parser n]
-      (debug-rule "c_l_folded", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_l_folded"
+      (fn c_l_folded-fn [parser n]
+        (when DEBUG (debug-rule "c_l_folded", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      (p/chr parser
        ">"
     ),
@@ -3424,18 +3905,22 @@
       )
     ), (p/t parser
     )]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [175]
 ;; s-nb-folded-text(n) ::=
 ;;   s-indent(n) ns-char
 ;;   nb-char*
 (def s_nb_folded_text
-  (name* "s_nb_folded_text"
-    (fn s_nb_folded_text-fn [parser n]
-      (debug-rule "s_nb_folded_text", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "s_nb_folded_text"
+      (fn s_nb_folded_text-fn [parser n]
+        (when DEBUG (debug-rule "s_nb_folded_text", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      [s_indent, n],
     ns_char,
     (p/rep parser
@@ -3443,18 +3928,22 @@
       nil,
       nb_char
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [176]
 ;; l-nb-folded-lines(n) ::=
 ;;   s-nb-folded-text(n)
 ;;   ( b-l-folded(n,block-in) s-nb-folded-text(n) )*
 (def l_nb_folded_lines
-  (name* "l_nb_folded_lines"
-    (fn l_nb_folded_lines-fn [parser n]
-      (debug-rule "l_nb_folded_lines", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "l_nb_folded_lines"
+      (fn l_nb_folded_lines-fn [parser n]
+        (when DEBUG (debug-rule "l_nb_folded_lines", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      [s_nb_folded_text, n],
     (p/rep parser
        0,
@@ -3463,18 +3952,22 @@
          [b_l_folded, n, "block-in"],
         [s_nb_folded_text, n]
       ))
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [177]
 ;; s-nb-spaced-text(n) ::=
 ;;   s-indent(n) s-white
 ;;   nb-char*
 (def s_nb_spaced_text
-  (name* "s_nb_spaced_text"
-    (fn s_nb_spaced_text-fn [parser n]
-      (debug-rule "s_nb_spaced_text", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "s_nb_spaced_text"
+      (fn s_nb_spaced_text-fn [parser n]
+        (when DEBUG (debug-rule "s_nb_spaced_text", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      [s_indent, n],
     s_white,
     (p/rep parser
@@ -3482,36 +3975,44 @@
       nil,
       nb_char
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [178]
 ;; b-l-spaced(n) ::=
 ;;   b-as-line-feed
 ;;   l-empty(n,block-in)*
 (def b_l_spaced
-  (name* "b_l_spaced"
-    (fn b_l_spaced-fn [parser n]
-      (debug-rule "b_l_spaced", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "b_l_spaced"
+      (fn b_l_spaced-fn [parser n]
+        (when DEBUG (debug-rule "b_l_spaced", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      b_as_line_feed,
     (p/rep parser
        0,
       nil,
       [l_empty, n, "block-in"]
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [179]
 ;; l-nb-spaced-lines(n) ::=
 ;;   s-nb-spaced-text(n)
 ;;   ( b-l-spaced(n) s-nb-spaced-text(n) )*
 (def l_nb_spaced_lines
-  (name* "l_nb_spaced_lines"
-    (fn l_nb_spaced_lines-fn [parser n]
-      (debug-rule "l_nb_spaced_lines", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "l_nb_spaced_lines"
+      (fn l_nb_spaced_lines-fn [parser n]
+        (when DEBUG (debug-rule "l_nb_spaced_lines", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      [s_nb_spaced_text, n],
     (p/rep parser
        0,
@@ -3520,18 +4021,22 @@
          [b_l_spaced, n],
         [s_nb_spaced_text, n]
       ))
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [180]
 ;; l-nb-same-lines(n) ::=
 ;;   l-empty(n,block-in)*
 ;;   ( l-nb-folded-lines(n) | l-nb-spaced-lines(n) )
 (def l_nb_same_lines
-  (name* "l_nb_same_lines"
-    (fn l_nb_same_lines-fn [parser n]
-      (debug-rule "l_nb_same_lines", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "l_nb_same_lines"
+      (fn l_nb_same_lines-fn [parser n]
+        (when DEBUG (debug-rule "l_nb_same_lines", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      (p/rep parser
        0,
       nil,
@@ -3541,18 +4046,22 @@
        [l_nb_folded_lines, n],
       [l_nb_spaced_lines, n]
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [181]
 ;; l-nb-diff-lines(n) ::=
 ;;   l-nb-same-lines(n)
 ;;   ( b-as-line-feed l-nb-same-lines(n) )*
 (def l_nb_diff_lines
-  (name* "l_nb_diff_lines"
-    (fn l_nb_diff_lines-fn [parser n]
-      (debug-rule "l_nb_diff_lines", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "l_nb_diff_lines"
+      (fn l_nb_diff_lines-fn [parser n]
+        (when DEBUG (debug-rule "l_nb_diff_lines", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      [l_nb_same_lines, n],
     (p/rep parser
        0,
@@ -3561,19 +4070,23 @@
          b_as_line_feed,
         [l_nb_same_lines, n]
       ))
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [182]
 ;; l-folded-content(n,t) ::=
 ;;   ( l-nb-diff-lines(n)
 ;;   b-chomped-last(t) )?
 ;;   l-chomped-empty(n,t)
 (def l_folded_content
-  (name* "l_folded_content"
-    (fn l_folded_content-fn [parser n t]
-      (debug-rule "l_folded_content", n, t)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "l_folded_content"
+      (fn l_folded_content-fn [parser n t]
+        (when DEBUG (debug-rule "l_folded_content", n, t))
+        (or (get @cache [n t])
+            (let [body
+  (p/all parser
      (p/rep parser
        0,
       1,
@@ -3582,9 +4095,10 @@
         [b_chomped_last, t]
       )),
     [l_chomped_empty, n, t]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n t] body)
+              body)))
+      nil)))
 ;; [183]
 ;; l+block-sequence(n) ::=
 ;;   ( s-indent(n+m)
@@ -3597,7 +4111,7 @@
   (let [m (p/call parser [auto_detect_indent, n] "number")]
     (if (and m (pos? m))
     (do
-      (debug-rule "l_block_sequence", n)
+      (when DEBUG (debug-rule "l_block_sequence", n))
     (p/all parser
      (p/rep parser
        1,
@@ -3621,10 +4135,13 @@
 ;;   '-' <not_followed_by_an_ns-char>
 ;;   s-l+block-indented(n,block-in)
 (def c_l_block_seq_entry
-  (name* "c_l_block_seq_entry"
-    (fn c_l_block_seq_entry-fn [parser n]
-      (debug-rule "c_l_block_seq_entry", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_l_block_seq_entry"
+      (fn c_l_block_seq_entry-fn [parser n]
+        (when DEBUG (debug-rule "c_l_block_seq_entry", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      (p/chr parser
        "-"
     ),
@@ -3633,9 +4150,10 @@
       ns_char
     ),
     [s_l_block_indented, n, "block-in"]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [185]
 ;; s-l+block-indented(n,c) ::=
 ;;   ( s-indent(m)
@@ -3647,7 +4165,7 @@
   (name* "s_l_block_indented"
     (fn s_l_block_indented-fn [parser n c]
   (let [m (p/call parser [auto_detect_indent, n] "number")]
-      (debug-rule "s_l_block_indented", n, c)
+      (when DEBUG (debug-rule "s_l_block_indented", n, c))
     (p/any parser
      (p/all parser
        [s_indent, m],
@@ -3681,10 +4199,13 @@
 ;;   c-l-block-seq-entry(n)
 ;;   ( s-indent(n) c-l-block-seq-entry(n) )*
 (def ns_l_compact_sequence
-  (name* "ns_l_compact_sequence"
-    (fn ns_l_compact_sequence-fn [parser n]
-      (debug-rule "ns_l_compact_sequence", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "ns_l_compact_sequence"
+      (fn ns_l_compact_sequence-fn [parser n]
+        (when DEBUG (debug-rule "ns_l_compact_sequence", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      [c_l_block_seq_entry, n],
     (p/rep parser
        0,
@@ -3693,9 +4214,10 @@
          [s_indent, n],
         [c_l_block_seq_entry, n]
       ))
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [187]
 ;; l+block-mapping(n) ::=
 ;;   ( s-indent(n+m)
@@ -3708,7 +4230,7 @@
   (let [m (p/call parser [auto_detect_indent, n] "number")]
     (if (and m (pos? m))
     (do
-      (debug-rule "l_block_mapping", n)
+      (when DEBUG (debug-rule "l_block_mapping", n))
     (p/all parser
      (p/rep parser
        1,
@@ -3732,42 +4254,53 @@
 ;;   c-l-block-map-explicit-entry(n)
 ;;   | ns-l-block-map-implicit-entry(n)
 (def ns_l_block_map_entry
-  (name* "ns_l_block_map_entry"
-    (fn ns_l_block_map_entry-fn [parser n]
-      (debug-rule "ns_l_block_map_entry", n)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "ns_l_block_map_entry"
+      (fn ns_l_block_map_entry-fn [parser n]
+        (when DEBUG (debug-rule "ns_l_block_map_entry", n))
+        (or (get @cache [n])
+            (let [body
+  (p/any parser
      [c_l_block_map_explicit_entry, n],
     [ns_l_block_map_implicit_entry, n]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [189]
 ;; c-l-block-map-explicit-entry(n) ::=
 ;;   c-l-block-map-explicit-key(n)
 ;;   ( l-block-map-explicit-value(n)
 ;;   | e-node )
 (def c_l_block_map_explicit_entry
-  (name* "c_l_block_map_explicit_entry"
-    (fn c_l_block_map_explicit_entry-fn [parser n]
-      (debug-rule "c_l_block_map_explicit_entry", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_l_block_map_explicit_entry"
+      (fn c_l_block_map_explicit_entry-fn [parser n]
+        (when DEBUG (debug-rule "c_l_block_map_explicit_entry", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      [c_l_block_map_explicit_key, n],
     (p/any parser
        [l_block_map_explicit_value, n],
       e_node
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [190]
 ;; c-l-block-map-explicit-key(n) ::=
 ;;   '?'
 ;;   s-l+block-indented(n,block-out)
 (def c_l_block_map_explicit_key
-  (name* "c_l_block_map_explicit_key"
-    (fn c_l_block_map_explicit_key-fn [parser n]
-      (debug-rule "c_l_block_map_explicit_key", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_l_block_map_explicit_key"
+      (fn c_l_block_map_explicit_key-fn [parser n]
+        (when DEBUG (debug-rule "c_l_block_map_explicit_key", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      (p/chr parser
        "?"
     ),
@@ -3780,26 +4313,31 @@
       )
     ),
     [s_l_block_indented, n, "block-out"]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [191]
 ;; l-block-map-explicit-value(n) ::=
 ;;   s-indent(n)
 ;;   ':' s-l+block-indented(n,block-out)
 (def l_block_map_explicit_value
-  (name* "l_block_map_explicit_value"
-    (fn l_block_map_explicit_value-fn [parser n]
-      (debug-rule "l_block_map_explicit_value", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "l_block_map_explicit_value"
+      (fn l_block_map_explicit_value-fn [parser n]
+        (when DEBUG (debug-rule "l_block_map_explicit_value", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      [s_indent, n],
     (p/chr parser
        ":"
     ),
     [s_l_block_indented, n, "block-out"]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [192]
 ;; ns-l-block-map-implicit-entry(n) ::=
 ;;   (
@@ -3807,42 +4345,51 @@
 ;;   | e-node )
 ;;   c-l-block-map-implicit-value(n)
 (def ns_l_block_map_implicit_entry
-  (name* "ns_l_block_map_implicit_entry"
-    (fn ns_l_block_map_implicit_entry-fn [parser n]
-      (debug-rule "ns_l_block_map_implicit_entry", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "ns_l_block_map_implicit_entry"
+      (fn ns_l_block_map_implicit_entry-fn [parser n]
+        (when DEBUG (debug-rule "ns_l_block_map_implicit_entry", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      (p/any parser
        ns_s_block_map_implicit_key,
       e_node
     ),
     [c_l_block_map_implicit_value, n]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [193]
 ;; ns-s-block-map-implicit-key ::=
 ;;   c-s-implicit-json-key(block-key)
 ;;   | ns-s-implicit-yaml-key(block-key)
 (def ns_s_block_map_implicit_key
-  (name* "ns_s_block_map_implicit_key"
-    (fn ns_s_block_map_implicit_key-fn [parser]
-      (debug-rule "ns_s_block_map_implicit_key")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      [c_s_implicit_json_key, "block-key"],
     [ns_s_implicit_yaml_key, "block-key"]
-  ))
-    nil))
-
+  )))]
+    (name* "ns_s_block_map_implicit_key"
+      (fn ns_s_block_map_implicit_key-fn [parser]
+        (when DEBUG (debug-rule "ns_s_block_map_implicit_key"))
+        @body)
+      nil)))
 ;; [194]
 ;; c-l-block-map-implicit-value(n) ::=
 ;;   ':' (
 ;;   s-l+block-node(n,block-out)
 ;;   | ( e-node s-l-comments ) )
 (def c_l_block_map_implicit_value
-  (name* "c_l_block_map_implicit_value"
-    (fn c_l_block_map_implicit_value-fn [parser n]
-      (debug-rule "c_l_block_map_implicit_value", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "c_l_block_map_implicit_value"
+      (fn c_l_block_map_implicit_value-fn [parser n]
+        (when DEBUG (debug-rule "c_l_block_map_implicit_value", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      (p/chr parser
        ":"
     ),
@@ -3853,18 +4400,22 @@
         s_l_comments
       )
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [195]
 ;; ns-l-compact-mapping(n) ::=
 ;;   ns-l-block-map-entry(n)
 ;;   ( s-indent(n) ns-l-block-map-entry(n) )*
 (def ns_l_compact_mapping
-  (name* "ns_l_compact_mapping"
-    (fn ns_l_compact_mapping-fn [parser n]
-      (debug-rule "ns_l_compact_mapping", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "ns_l_compact_mapping"
+      (fn ns_l_compact_mapping-fn [parser n]
+        (when DEBUG (debug-rule "ns_l_compact_mapping", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      [ns_l_block_map_entry, n],
     (p/rep parser
        0,
@@ -3873,31 +4424,39 @@
          [s_indent, n],
         [ns_l_block_map_entry, n]
       ))
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [196]
 ;; s-l+block-node(n,c) ::=
 ;;   s-l+block-in-block(n,c) | s-l+flow-in-block(n)
 (def s_l_block_node
-  (name* "s_l_block_node"
-    (fn s_l_block_node-fn [parser n c]
-      (debug-rule "s_l_block_node", n, c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "s_l_block_node"
+      (fn s_l_block_node-fn [parser n c]
+        (when DEBUG (debug-rule "s_l_block_node", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/any parser
      [s_l_block_in_block, n, c],
     [s_l_flow_in_block, n]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [197]
 ;; s-l+flow-in-block(n) ::=
 ;;   s-separate(n+1,flow-out)
 ;;   ns-flow-node(n+1,flow-out) s-l-comments
 (def s_l_flow_in_block
-  (name* "s_l_flow_in_block"
-    (fn s_l_flow_in_block-fn [parser n]
-      (debug-rule "s_l_flow_in_block", n)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "s_l_flow_in_block"
+      (fn s_l_flow_in_block-fn [parser n]
+        (when DEBUG (debug-rule "s_l_flow_in_block", n))
+        (or (get @cache [n])
+            (let [body
+  (p/all parser
      [s_separate, (p/add parser
        n,
       1
@@ -3907,32 +4466,40 @@
       1
     ), "flow-out"],
     s_l_comments
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n] body)
+              body)))
+      nil)))
 ;; [198]
 ;; s-l+block-in-block(n,c) ::=
 ;;   s-l+block-scalar(n,c) | s-l+block-collection(n,c)
 (def s_l_block_in_block
-  (name* "s_l_block_in_block"
-    (fn s_l_block_in_block-fn [parser n c]
-      (debug-rule "s_l_block_in_block", n, c)
-    (p/any parser
+  (let [cache (volatile! {})]
+    (name* "s_l_block_in_block"
+      (fn s_l_block_in_block-fn [parser n c]
+        (when DEBUG (debug-rule "s_l_block_in_block", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/any parser
      [s_l_block_scalar, n, c],
     [s_l_block_collection, n, c]
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [199]
 ;; s-l+block-scalar(n,c) ::=
 ;;   s-separate(n+1,c)
 ;;   ( c-ns-properties(n+1,c) s-separate(n+1,c) )?
 ;;   ( c-l+literal(n) | c-l+folded(n) )
 (def s_l_block_scalar
-  (name* "s_l_block_scalar"
-    (fn s_l_block_scalar-fn [parser n c]
-      (debug-rule "s_l_block_scalar", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "s_l_block_scalar"
+      (fn s_l_block_scalar-fn [parser n c]
+        (when DEBUG (debug-rule "s_l_block_scalar", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      [s_separate, (p/add parser
        n,
       1
@@ -3954,9 +4521,10 @@
        [c_l_literal, n],
       [c_l_folded, n]
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [200]
 ;; s-l+block-collection(n,c) ::=
 ;;   ( s-separate(n+1,c)
@@ -3965,10 +4533,13 @@
 ;;   ( l+block-sequence(seq-spaces(n,c))
 ;;   | l+block-mapping(n) )
 (def s_l_block_collection
-  (name* "s_l_block_collection"
-    (fn s_l_block_collection-fn [parser n c]
-      (debug-rule "s_l_block_collection", n, c)
-    (p/all parser
+  (let [cache (volatile! {})]
+    (name* "s_l_block_collection"
+      (fn s_l_block_collection-fn [parser n c]
+        (when DEBUG (debug-rule "s_l_block_collection", n, c))
+        (or (get @cache [n c])
+            (let [body
+  (p/all parser
      (p/rep parser
        0,
       1,
@@ -4000,9 +4571,10 @@
        [l_block_sequence, [seq_spaces, n, c]],
       [l_block_mapping, n]
     )
-  ))
-    nil))
-
+  )]
+              (vswap! cache assoc [n c] body)
+              body)))
+      nil)))
 ;; [201]
 ;; seq-spaces(n,c) ::=
 ;;   ( c = block-out => n-1 )
@@ -4010,7 +4582,7 @@
 (def seq_spaces
   (name* "seq_spaces"
     (fn seq_spaces-fn [parser n c]
-      (debug-rule "seq_spaces", n, c)
+      (when DEBUG (debug-rule "seq_spaces", n, c))
     (p/flip parser
      c,
     {
@@ -4024,9 +4596,8 @@
 ;; l-document-prefix ::=
 ;;   c-byte-order-mark? l-comment*
 (def l_document_prefix
-  (name* "l_document_prefix"
-    (fn l_document_prefix-fn [parser]
-      (debug-rule "l_document_prefix")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/rep parser
        0,
@@ -4038,16 +4609,18 @@
       nil,
       l_comment
     )
-  ))
-    nil))
-
+  )))]
+    (name* "l_document_prefix"
+      (fn l_document_prefix-fn [parser]
+        (when DEBUG (debug-rule "l_document_prefix"))
+        @body)
+      nil)))
 ;; [203]
 ;; c-directives-end ::=
 ;;   '-' '-' '-'
 (def c_directives_end
-  (name* "c_directives_end"
-    (fn c_directives_end-fn [parser]
-      (debug-rule "c_directives_end")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "-"
@@ -4066,16 +4639,18 @@
         b_break
       )
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_directives_end"
+      (fn c_directives_end-fn [parser]
+        (when DEBUG (debug-rule "c_directives_end"))
+        @body)
+      nil)))
 ;; [204]
 ;; c-document-end ::=
 ;;   '.' '.' '.'
 (def c_document_end
-  (name* "c_document_end"
-    (fn c_document_end-fn [parser]
-      (debug-rule "c_document_end")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/chr parser
        "."
@@ -4086,31 +4661,35 @@
     (p/chr parser
        "."
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_document_end"
+      (fn c_document_end-fn [parser]
+        (when DEBUG (debug-rule "c_document_end"))
+        @body)
+      nil)))
 ;; [205]
 ;; l-document-suffix ::=
 ;;   c-document-end s-l-comments
 (def l_document_suffix
-  (name* "l_document_suffix"
-    (fn l_document_suffix-fn [parser]
-      (debug-rule "l_document_suffix")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      c_document_end,
     s_l_comments
-  ))
-    nil))
-
+  )))]
+    (name* "l_document_suffix"
+      (fn l_document_suffix-fn [parser]
+        (when DEBUG (debug-rule "l_document_suffix"))
+        @body)
+      nil)))
 ;; [206]
 ;; c-forbidden ::=
 ;;   <start_of_line>
 ;;   ( c-directives-end | c-document-end )
 ;;   ( b-char | s-white | <end_of_file> )
 (def c_forbidden
-  (name* "c_forbidden"
-    (fn c_forbidden-fn [parser]
-      (debug-rule "c_forbidden")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/start-of-line parser),
     (p/any parser
@@ -4122,34 +4701,38 @@
       s_white,
       (p/end-of-stream parser)
     )
-  ))
-    nil))
-
+  )))]
+    (name* "c_forbidden"
+      (fn c_forbidden-fn [parser]
+        (when DEBUG (debug-rule "c_forbidden"))
+        @body)
+      nil)))
 ;; [207]
 ;; l-bare-document ::=
 ;;   s-l+block-node(-1,block-in)
 ;;   <excluding_c-forbidden_content>
 (def l_bare_document
-  (name* "l_bare_document"
-    (fn l_bare_document-fn [parser]
-      (debug-rule "l_bare_document")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/exclude parser
        c_forbidden
     ),
     [s_l_block_node, -1, "block-in"]
-  ))
-    nil))
-
+  )))]
+    (name* "l_bare_document"
+      (fn l_bare_document-fn [parser]
+        (when DEBUG (debug-rule "l_bare_document"))
+        @body)
+      nil)))
 ;; [208]
 ;; l-explicit-document ::=
 ;;   c-directives-end
 ;;   ( l-bare-document
 ;;   | ( e-node s-l-comments ) )
 (def l_explicit_document
-  (name* "l_explicit_document"
-    (fn l_explicit_document-fn [parser]
-      (debug-rule "l_explicit_document")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      c_directives_end,
     (p/any parser
@@ -4159,17 +4742,19 @@
         s_l_comments
       )
     )
-  ))
-    nil))
-
+  )))]
+    (name* "l_explicit_document"
+      (fn l_explicit_document-fn [parser]
+        (when DEBUG (debug-rule "l_explicit_document"))
+        @body)
+      nil)))
 ;; [209]
 ;; l-directive-document ::=
 ;;   l-directive+
 ;;   l-explicit-document
 (def l_directive_document
-  (name* "l_directive_document"
-    (fn l_directive_document-fn [parser]
-      (debug-rule "l_directive_document")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      (p/rep parser
        1,
@@ -4177,25 +4762,30 @@
       l_directive
     ),
     l_explicit_document
-  ))
-    nil))
-
+  )))]
+    (name* "l_directive_document"
+      (fn l_directive_document-fn [parser]
+        (when DEBUG (debug-rule "l_directive_document"))
+        @body)
+      nil)))
 ;; [210]
 ;; l-any-document ::=
 ;;   l-directive-document
 ;;   | l-explicit-document
 ;;   | l-bare-document
 (def l_any_document
-  (name* "l_any_document"
-    (fn l_any_document-fn [parser]
-      (debug-rule "l_any_document")
+  (let [body (delay
+               (let [parser nil]
     (p/any parser
      l_directive_document,
     l_explicit_document,
     l_bare_document
-  ))
-    nil))
-
+  )))]
+    (name* "l_any_document"
+      (fn l_any_document-fn [parser]
+        (when DEBUG (debug-rule "l_any_document"))
+        @body)
+      nil)))
 ;; [211]
 ;; l-yaml-stream ::=
 ;;   l-document-prefix* l-any-document?
@@ -4203,9 +4793,8 @@
 ;;   l-any-document? )
 ;;   | ( l-document-prefix* l-explicit-document? ) )*
 (def l_yaml_stream
-  (name* "l_yaml_stream"
-    (fn l_yaml_stream-fn [parser]
-      (debug-rule "l_yaml_stream")
+  (let [body (delay
+               (let [parser nil]
     (p/all parser
      l_document_prefix,
     (p/rep parser
@@ -4239,7 +4828,10 @@
           )
         )
       ))
-  ))
-    nil))
-
+  )))]
+    (name* "l_yaml_stream"
+      (fn l_yaml_stream-fn [parser]
+        (when DEBUG (debug-rule "l_yaml_stream"))
+        @body)
+      nil)))
 

@@ -65,7 +65,7 @@ defn gen-grammar-head(top-name ns-prefix): |
     (:refer-clojure :exclude [empty])
     (:require [$ns-prefix.parser :as p]
               [$ns-prefix.prelude
-               :refer [debug-rule name* from-code-point]]))
+               :refer [debug-rule name* from-code-point DEBUG]]))
 
   (declare $top-name)
 
@@ -108,13 +108,50 @@ defn gen-rule(spec nums comments name):
     :args args)
   rule-body =: indent(gen(ctx rule))
   setm-close =: gen-setm-close(setm)
-  str: |+
-    ${comment}(def $rule-name-str
-      (name* "$rule-name-str"
-        (fn ${rule-name-str}-fn $rule-args$setm
-          (debug-rule "$rule-name-str"$debug-args)
-      $rule-body$setm-close)
-        nil))
+  has-flip =: has-text?(rule-body 'p/flip')
+  cacheable =: (setm == '') && has-flip.!
+  cond:
+    cacheable && (args.# == 0):
+      # No runtime args and a pure-constructor body: build the
+      # combinator tree once on first use (delay defers evaluation
+      # past the forward declarations). Constructors ignore their
+      # parser argument, so it is shadowed with nil.
+      str: |+
+        ${comment}(def $rule-name-str
+          (let [body (delay
+                       (let [parser nil]
+          $rule-body))]
+            (name* "$rule-name-str"
+              (fn ${rule-name-str}-fn [parser]
+                (when DEBUG (debug-rule "$rule-name-str"))
+                @body)
+              nil)))
+    cacheable:
+      # Runtime args are embedded in the tree, so cache one tree per
+      # distinct argument vector (n is a small int or nil, c one of a
+      # few context strings).
+      str: |+
+        ${comment}(def $rule-name-str
+          (let [cache (volatile! {})]
+            (name* "$rule-name-str"
+              (fn ${rule-name-str}-fn $rule-args
+                (when DEBUG (debug-rule "$rule-name-str"$debug-args))
+                (or (get @cache [$(args:joins)])
+                    (let [body
+        $rule-body]
+                      (vswap! cache assoc [$(args:joins)] body)
+                      body)))
+              nil)))
+    else:
+      # set-m rules evaluate auto-detect at call time and flip rules
+      # execute at construction; both must rebuild per invocation.
+      str: |+
+        ${comment}(def $rule-name-str
+          (name* "$rule-name-str"
+            (fn ${rule-name-str}-fn $rule-args$setm
+              (when DEBUG (debug-rule "$rule-name-str"$debug-args))
+          $rule-body$setm-close)
+            nil))
 
 defn setm-and-rule(rule):
   cond:
