@@ -1,0 +1,89 @@
+#!/usr/bin/env bb
+
+;; Benchmark harness for the YAML reference parser.
+;; Times yaml-parser.core/parse over a synthetic corpus and prints
+;; min/median per case. Run via: make shell cmd='bench/run-bench'
+;; Optional args: case names to run (default all), e.g.
+;;   bench/run-bench flow-nested-10 mixed-small
+
+(require '[babashka.classpath :as cp]
+         '[babashka.fs :as fs])
+
+(let [script (System/getProperty "babashka.file")
+      root (fs/parent (fs/parent script))]
+  (cp/add-classpath (str (fs/path root "src"))))
+
+(ns bench
+  (:require [clojure.string :as str]
+            [yaml-parser.core :as yaml]))
+
+(defn flow-nested [depth]
+  (str (apply str (repeat depth "["))
+       "a, b"
+       (apply str (repeat depth "]"))
+       "\n"))
+
+(defn block-deep [levels width]
+  ;; width top-level keys, each nesting `levels` mappings with a
+  ;; small sequence at the bottom
+  (str/join
+   (for [k (range width)]
+     (str "key" k ":\n"
+          (str/join
+           (for [l (range 1 (inc levels))]
+             (str (apply str (repeat l "  ")) "n" l ":\n")))
+          (let [pad (apply str (repeat (inc levels) "  "))]
+            (str pad "- one\n" pad "- two\n" pad "- three\n"))))))
+
+(defn scalars-doc [lines]
+  (str "literal: |\n"
+       (str/join (for [i (range lines)] (str "  line " i " of the text\n")))
+       "folded: >\n"
+       (str/join (for [i (range lines)] (str "  word" i " and more\n")))
+       "plain: this is a plain scalar\n"
+       "quoted: \"a double quoted scalar\"\n"))
+
+(def mixed-small
+  (str "name: YAML\n"
+       "version: 1.2\n"
+       "tags: [a, b, c]\n"
+       "map: {x: 1, y: 2}\n"
+       "list:\n"
+       "- one\n"
+       "- two\n"
+       "anchor: &a value\n"
+       "alias: *a\n"))
+
+(def cases
+  [["flow-nested-8" (flow-nested 8) 1]
+   ["flow-nested-10" (flow-nested 10) 1]
+   ["flow-nested-12" (flow-nested 12) 1]
+   ["block-deep" (block-deep 8 12) 1]
+   ["scalars" (scalars-doc 40) 1]
+   ["mixed-small" mixed-small 50]])
+
+(defn time-one [text iters]
+  (let [t0 (System/nanoTime)]
+    (dotimes [_ iters]
+      (yaml/parse text))
+    (/ (- (System/nanoTime) t0) 1e6)))
+
+(defn run-case [[name text iters]]
+  (let [runs (vec (repeatedly 5 #(time-one text iters)))
+        sorted (sort runs)
+        min* (first sorted)
+        med (nth sorted 2)]
+    (println (format "%-16s %6d bytes x%-3d  min %10.2f ms  median %10.2f ms"
+                     name (count text) iters min* med))
+    [name min* med]))
+
+(defn -main [& args]
+  (let [want (set args)
+        selected (if (empty? want)
+                   cases
+                   (filter #(want (first %)) cases))]
+    (println "case                     size          min             median")
+    (doseq [c selected]
+      (run-case c))))
+
+(apply -main *command-line-args*)
