@@ -229,6 +229,12 @@
                        :else match))))))
 
 ;; Receiver callbacks
+;; NOTE: the parser memoizes flow-context rules (parser/memo-rules) and
+;; replays their receiver effects from a recording. That recording only
+;; validates and restores the receiver volatiles in parser/memo-vol-keys.
+;; A handler for a rule reachable from flow content must not read or
+;; write receiver state outside those volatiles and the event buffers,
+;; or memo replay goes stale.
 (def receiver-callbacks
   {;; Stream
    "try__l_yaml_stream"

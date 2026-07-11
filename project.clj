@@ -1,4 +1,4 @@
-(defproject org.yamlstar/yaml-parser "0.1.0-SNAPSHOT"
+(defproject org.yamlstar/yaml-parser "0.2.0-SNAPSHOT"
   :description "Pure Clojure YAML 1.2 reference parser"
   :url "https://github.com/yaml/yaml-reference-parser-clj"
   :license {:name "MIT"
