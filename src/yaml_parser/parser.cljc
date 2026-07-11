@@ -75,16 +75,18 @@
     (when (>= (count state) 2)
       (nth state (- (count state) 2)))))
 
-(defn state-push [parser name]
-  (let [curr (state-curr parser)]
-    (vswap! (:state parser) conj
-           {:name name
-            :doc (:doc curr)
-            :lvl (inc (:lvl curr))
-            :beg @(:pos parser)
-            :end nil
-            :m (:m curr)
-            :t (:t curr)})))
+(defn state-push
+  ([parser name] (state-push parser name false))
+  ([parser name doc]
+   (let [curr (state-curr parser)]
+     (vswap! (:state parser) conj
+            {:name name
+             :doc (if doc true (:doc curr))
+             :lvl (inc (:lvl curr))
+             :beg @(:pos parser)
+             :end nil
+             :m (:m curr)
+             :t (:t curr)}))))
 
 (defn state-pop [parser]
   (let [child (peek @(:state parser))]
@@ -211,7 +213,8 @@
 (defn call
   ([parser func] (call parser func "boolean"))
   ([parser func type]
-   (let [[func & args] (if (vector? func) func [func])]
+   (let [fvec (when (vector? func) func)
+         func (if fvec (nth fvec 0) func)]
      ;; If func is a number or string, return it directly
      (cond
        (number? func) func
@@ -221,27 +224,18 @@
          (when-not (fn? func)
            (FAIL (str "Bad call type '" (typeof* func) "' for '" func "'")))
 
-         (let [trace (or (func-name func)
-                         (:trace (meta func))
-                         (str func))]
-           (state-push parser trace)
-
-           ;; Set doc flag for l_bare_document
-           (when (= trace "l_bare_document")
-             (vswap! (:state parser)
-                    (fn [s]
-                      (let [curr (peek s)]
-                        (conj (pop s) (assoc curr :doc true))))))
+         ;; func-name reads the :trace metadata set by name*
+         (let [trace (or (func-name func) (str func))]
+           (state-push parser trace (= trace "l_bare_document"))
 
            ;; Evaluate arguments (skip mapv when no args)
-           (let [args (if (nil? args)
-                        nil
+           (let [args (when (and fvec (> (count fvec) 1))
                         (mapv (fn [a]
                                 (cond
                                   (vector? a) (call parser a "any")
                                   (fn? a) (call parser a "any")
                                   :else a))
-                              args))
+                              (subvec fvec 1)))
                  pos @(:pos parser)
                  receiver (when MEMO @(:receiver parser))
                  memo? (and MEMO
@@ -265,19 +259,26 @@
                          _ (receive parser func :try pos)
 
                          ;; Call the function — bypass clojure.core/apply
-                         ;; when args is empty (common case) to avoid
-                         ;; lang.Apply []any allocation and reflection.
+                         ;; for the common arities to avoid lang.Apply
+                         ;; []any allocation and reflection.
                          value (loop [v (if (nil? args)
                                           (func parser)
-                                          (apply func parser args))]
+                                          (case (count args)
+                                            1 (func parser (nth args 0))
+                                            2 (func parser (nth args 0)
+                                                    (nth args 1))
+                                            (apply func parser args)))]
                                  (if (or (fn? v) (vector? v))
                                    (recur (call parser v))
                                    v))]
 
                      ;; Type checking - nil is treated as false for boolean type
                      (when (and (not= type "any")
-                                (not= (typeof* value) type)
-                                (not (and (= type "boolean") (nil? value))))
+                                (if (= type "boolean")
+                                  (not (or (nil? value)
+                                           (true? value)
+                                           (false? value)))
+                                  (not= (typeof* value) type)))
                        (FAIL (str "Calling '" trace "' returned '" (typeof* value) "' instead of '" type "'")))
 
                      ;; Handle result
@@ -313,65 +314,107 @@
 (defn end-of-stream* [parser]
   (>= @(:pos parser) @(:end parser)))
 
+#?(:clj
+   (defn- doc-end-marker?
+     "True when input at pos starts with --- or ... followed by
+     whitespace or end of input. Equivalent to the regex
+     ^(?:---|\\.\\.\\.)((?=\\s)|$) without the per-call pattern
+     compile and full-suffix substring."
+     [^String input pos]
+     (let [len (.length input)]
+       (and (<= (+ pos 3) len)
+            (let [c (.charAt input pos)]
+              (and (or (= c \-) (= c \.))
+                   (= c (.charAt input (inc pos)))
+                   (= c (.charAt input (+ pos 2)))))
+            (or (= (+ pos 3) len)
+                (let [c (.charAt input (+ pos 3))]
+                  ;; Java \s is [ \t\n\x0B\f\r]
+                  (or (= c \space) (= c \tab) (= c \newline)
+                      (= c \return) (= c \formfeed)
+                      (= c (char 11)))))))))
+
 (defn the-end [parser]
   (or (end-of-stream* parser)
       (and (:doc (state-curr parser))
            (start-of-line* parser)
-           ;; RE2 doesn't support lookaheads; check manually
-           (let [remaining (subs @(:input parser) @(:pos parser))]
-             #?(:clj (re-find (re-pattern "^(?:---|\\.\\.\\.)((?=\\s)|$)") remaining)
-                :glj (let [prefix (re-find #"^(?:---|\.\.\.)" remaining)]
-                       (when prefix
-                         (let [after (subs remaining (count prefix))]
-                           (or (empty? after)
-                               (re-find #"^\s" after))))))))))
+           #?(:clj (doc-end-marker? @(:input parser) @(:pos parser))
+              :glj (let [remaining (subs @(:input parser) @(:pos parser))
+                         prefix (re-find #"^(?:---|\.\.\.)" remaining)]
+                     (when prefix
+                       (let [after (subs remaining (count prefix))]
+                         (or (empty? after)
+                             (re-find #"^\s" after)))))))))
 
-;; Grammar-callable versions (return functions)
-(defn start-of-line [parser]
+;; Grammar-callable versions (return functions). The wrappers carry no
+;; per-call state, so each is built once and shared.
+(def ^:private start-of-line-rule
   (name* "start_of_line"
     (fn [p] (start-of-line* p))
     "start_of_line"))
 
-(defn end-of-stream [parser]
+(defn start-of-line [parser]
+  start-of-line-rule)
+
+(def ^:private end-of-stream-rule
   (name* "end_of_stream"
     (fn [p] (end-of-stream* p))
     "end_of_stream"))
 
-(defn empty-rule [parser]
+(defn end-of-stream [parser]
+  end-of-stream-rule)
+
+(def ^:private empty-rule*
   (name* "empty"
     (fn [p] true)
     "empty"))
 
-;; Character matching primitives
+(defn empty-rule [parser]
+  empty-rule*)
+
+;; Character matching primitives. Rule bodies reconstruct their
+;; combinator trees on every invocation, so these matchers are cached
+;; by their construction args (they don't capture the parser). The
+;; caches are bounded by the distinct chars/ranges in the grammar.
+(def ^:private chr-cache (volatile! {}))
+
 (defn chr [parser char]
-  (let [trace (str "chr(" (stringify char) ")")
-        c (first char)]
-    (name* trace
-      (fn chr-fn [p]
-        (when-not (the-end p)
-          (when (= (nth @(:input p) @(:pos p)) c)
-            (vswap! (:pos p) inc)
-            true)))
-      trace)))
+  (or (get @chr-cache char)
+      (let [trace (str "chr(" (stringify char) ")")
+            c (first char)
+            f (name* trace
+                (fn chr-fn [p]
+                  (when-not (the-end p)
+                    (when (= (nth @(:input p) @(:pos p)) c)
+                      (vswap! (:pos p) inc)
+                      true)))
+                trace)]
+        (vswap! chr-cache assoc char f)
+        f)))
+
+(def ^:private rng-cache (volatile! {}))
 
 (defn rng [parser low high]
-  (let [trace (str "rng(" (stringify low) "," (stringify high) ")")
-        lo #?(:clj (Character/codePointAt ^String low 0)
-              :glj (int (first low)))
-        hi #?(:clj (Character/codePointAt ^String high 0)
-              :glj (int (first high)))]
-    (name* trace
-      (fn rng-fn [p]
-        (when-not (the-end p)
-          (let [input @(:input p)
-                pos @(:pos p)
-                cp #?(:clj (Character/codePointAt ^String input pos)
-                      :glj (int (nth input pos)))]
-            (when (and (>= cp lo) (<= cp hi))
-              (vswap! (:pos p) + #?(:clj (Character/charCount cp)
-                                     :glj 1))
-              true))))
-      trace)))
+  (or (get @rng-cache [low high])
+      (let [trace (str "rng(" (stringify low) "," (stringify high) ")")
+            lo #?(:clj (Character/codePointAt ^String low 0)
+                  :glj (int (first low)))
+            hi #?(:clj (Character/codePointAt ^String high 0)
+                  :glj (int (first high)))
+            f (name* trace
+                (fn rng-fn [p]
+                  (when-not (the-end p)
+                    (let [input @(:input p)
+                          pos @(:pos p)
+                          cp #?(:clj (Character/codePointAt ^String input pos)
+                                :glj (int (nth input pos)))]
+                      (when (and (>= cp lo) (<= cp hi))
+                        (vswap! (:pos p) + #?(:clj (Character/charCount cp)
+                                               :glj 1))
+                        true))))
+                trace)]
+        (vswap! rng-cache assoc [low high] f)
+        f)))
 
 ;; Combinators
 (defn all [parser & funcs]
@@ -410,7 +453,7 @@
     "may"))
 
 (defn rep [parser min max func]
-  (let [trace (str "rep(" min "," max ")")]
+  (let [trace (if TRACE (str "rep(" min "," max ")") "rep")]
     (name* trace
       (fn rep-fn [p]
         (if (and max (< max 0))
@@ -440,7 +483,7 @@
       trace)))
 
 (defn rep2 [parser min max func]
-  (let [trace (str "rep2(" min "," max ")")]
+  (let [trace (if TRACE (str "rep2(" min "," max ")") "rep2")]
     (name* trace
       (fn rep2-fn [p]
         (if (and max (< max 0))
@@ -490,7 +533,7 @@
     "but"))
 
 (defn chk [parser type expr]
-  (let [trace (str "chk(" type "," (stringify expr) ")")]
+  (let [trace (if TRACE (str "chk(" type "," (stringify expr) ")") "chk")]
     (name* trace
       (fn chk-fn [p]
         (let [pos @(:pos p)]
@@ -504,7 +547,7 @@
       trace)))
 
 (defn case* [parser var map]
-  (let [trace (str "case(" var "," (stringify map) ")")]
+  (let [trace (if TRACE (str "case(" var "," (stringify map) ")") "case")]
     (name* trace
       (fn case-fn [p]
         (let [rule (get map var)]
@@ -556,7 +599,7 @@
       trace)))
 
 (defn max* [parser max-val]
-  (let [trace (str "max(" max-val ")")]
+  (let [trace (if TRACE (str "max(" max-val ")") "max")]
     (name* trace
       (fn max-fn [p] true)
       trace)))
@@ -567,7 +610,7 @@
     "exclude"))
 
 (defn add [parser x y]
-  (let [trace (str "add(" x "," (stringify y) ")")]
+  (let [trace (if TRACE (str "add(" x "," (stringify y) ")") "add")]
     (name* trace
       (fn add-fn [p]
         (let [y-val (if (fn? y) (call p y "number") y)]
@@ -577,13 +620,13 @@
       trace)))
 
 (defn sub [parser x y]
-  (let [trace (str "sub(" x "," y ")")]
+  (let [trace (if TRACE (str "sub(" x "," y ")") "sub")]
     (name* trace
       (fn sub-fn [p]
         (- x y))
       trace)))
 
-(defn match [parser]
+(def ^:private match-rule
   (name* "match"
     (fn match-fn [p]
       (let [state @(:state p)]
@@ -601,6 +644,9 @@
                   (FAIL "Can't find match"))
                 (recur (dec i))))))))
     "match"))
+
+(defn match [parser]
+  match-rule)
 
 (defn len [parser str-val]
   (name* "len"
@@ -628,7 +674,7 @@
     "if"))
 
 (defn lt [parser x y]
-  (let [trace (str "lt(" (stringify x) "," (stringify y) ")")]
+  (let [trace (if TRACE (str "lt(" (stringify x) "," (stringify y) ")") "lt")]
     (name* trace
       (fn lt-fn [p]
         (let [x-val (if (number? x) x (call p x "number"))
@@ -637,7 +683,7 @@
       trace)))
 
 (defn le [parser x y]
-  (let [trace (str "le(" (stringify x) "," (stringify y) ")")]
+  (let [trace (if TRACE (str "le(" (stringify x) "," (stringify y) ")") "le")]
     (name* trace
       (fn le-fn [p]
         (let [x-val (if (number? x) x (call p x "number"))
@@ -645,54 +691,107 @@
           (<= x-val y-val)))
       trace)))
 
-(defn m [parser]
+(def ^:private m-rule
   (name* "m"
     (fn m-fn [p]
       (:m (state-curr p)))
     "m"))
 
-(defn t [parser]
+(defn m [parser]
+  m-rule)
+
+(def ^:private t-rule
   (name* "t"
     (fn t-fn [p]
       (:t (state-curr p)))
     "t"))
 
+(defn t [parser]
+  t-rule)
+
 ;; Auto-detect indent
-(defn auto-detect-indent [parser n]
-  (let [pos @(:pos parser)
-        input @(:input parser)
+(defn- scan-spaces
+  "Index of the first non-space char at or after pos."
+  [^String input pos len]
+  (loop [i (long pos)]
+    (if (and (< i len) (= (.charAt input i) \space))
+      (recur (inc i))
+      i)))
+
+(defn auto-detect-indent
+  "Equivalent to matching ^((?:\\ *(?:\\#.*)?\\n)*)(\\ *) at pos:
+  skip leading blank/comment lines (group 1, pre), then count the
+  spaces at the start of the next line (group 2, m-raw)."
+  [parser n]
+  (let [pos (long @(:pos parser))
+        ^String input @(:input parser)
+        len (.length input)
         in-seq (and (> pos 0)
-                    (re-find #"^[-?:]$" (str (nth input (dec pos)))))
-        pattern #"^((?:\ *(?:\#.*)?\n)*)(\ *)"
-        match-result (re-find pattern (subs input pos))]
-    (when-not match-result
-      (FAIL "auto_detect_indent"))
-    (let [pre (nth match-result 1)
-          m-raw (count (nth match-result 2))
-          m (if (and in-seq (zero? (count pre)))
-              (if (= n -1) (inc m-raw) m-raw)
-              (- m-raw n))
-          m (if (< m 0) 0 m)]
-      m)))
+                    (let [c (.charAt input (dec pos))]
+                      (or (= c \-) (= c \?) (= c \:))))
+        [pre-len m-raw]
+        (loop [line-start pos]
+          (let [sp-end (scan-spaces input line-start len)
+                ;; A pre line is spaces, an optional #comment, then \n
+                nl (cond
+                     (and (< sp-end len)
+                          (= (.charAt input sp-end) \newline))
+                     sp-end
+
+                     (and (< sp-end len)
+                          (= (.charAt input sp-end) \#))
+                     (let [j (loop [j sp-end]
+                               (if (and (< j len)
+                                        (not= (.charAt input j) \newline))
+                                 (recur (inc j))
+                                 j))]
+                       (when (< j len) j))
+
+                     :else nil)]
+            (if nl
+              (recur (inc (long nl)))
+              [(- line-start pos) (- sp-end line-start)])))
+        m (if (and in-seq (zero? pre-len))
+            (if (= n -1) (inc m-raw) m-raw)
+            (- m-raw n))]
+    (if (< m 0) 0 m)))
 
 (defn auto-detect
-  "Auto-detect indentation. Can take n as parameter or get it from state."
+  "Auto-detect indentation. Can take n as parameter or get it from state.
+  Equivalent to matching ^.*\\n((?:\\ *\\n)*)(\\ *)(.?) at pos: skip the
+  rest of the current line, collect all-space lines (group 1, pre; its
+  longest line is max-empty), then the indent of the first content line
+  (group 2) and whether any content follows on it (group 3)."
   ([parser] (auto-detect parser (:m (state-curr parser))))
   ([parser n]
-   (let [input @(:input parser)
-         pos @(:pos parser)
-         pattern #"^.*\n((?:\ *\n)*)(\ *)(.?)"
-         match-result (re-find pattern (subs input pos))
-         pre (or (nth match-result 1) "")
-         m (if (and (nth match-result 3)
-                    (pos? (count (nth match-result 3))))
-             (- (count (or (nth match-result 2) "")) (or n 0))
-             (loop [m 0]
-               (if (re-find (re-pattern (str " {" m "}")) pre)
-                 (recur (inc m))
-                 (- m (or n 0) 1))))]
+   (let [^String input @(:input parser)
+         pos (long @(:pos parser))
+         len (.length input)
+         n (or n 0)
+         first-nl (loop [i pos]
+                    (cond
+                      (>= i len) nil
+                      (= (.charAt input i) \newline) i
+                      :else (recur (inc i))))
+         [max-empty g2-len g3?]
+         (if first-nl
+           (loop [line-start (inc (long first-nl))
+                  max-len 0]
+             (let [sp-end (scan-spaces input line-start len)]
+               (if (and (< sp-end len)
+                        (= (.charAt input sp-end) \newline))
+                 (recur (inc sp-end) (max max-len (- sp-end line-start)))
+                 [max-len (- sp-end line-start) (< sp-end len)])))
+           [0 0 false])
+         m (if g3?
+             (- g2-len n)
+             ;; No content line: smallest k such that pre has no run of
+             ;; k spaces, minus n and 1; i.e. longest space run minus n
+             (- max-empty n))]
      (when (and (> m 0)
-                (re-find (re-pattern (str "(?m)^.{" (+ m (or n 0)) "} ")) pre))
+                ;; Some all-space line is indented deeper than m + n,
+                ;; i.e. spaces found after the detected indent
+                (>= max-empty (+ m n 1)))
        (die "Spaces found after indent in auto-detect (5LLU)"))
      (if (zero? m) 1 m))))
 

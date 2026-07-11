@@ -89,8 +89,12 @@
 (defn debug [msg]
   (warn (str ">>> " msg)))
 
+;; Resolved once at load time; a getenv per rule invocation is a
+;; measurable cost in the hot path.
+(def DEBUG (env "DEBUG"))
+
 (defn debug-rule [name & args]
-  (when (env "DEBUG")
+  (when DEBUG
     (let [args-str (str/join "," (map stringify args))]
       (debug (str name "(" args-str ")")))))
 
