@@ -10,6 +10,32 @@
   #?(:clj (Boolean/parseBoolean (or (env "TRACE") "false"))
      :glj (= (os.Getenv "TRACE") "true")))
 
+;; Packrat memoization of flow-context rules. Disabled under TRACE
+;; (memo hits skip subtree execution, which would change trace output)
+;; and via YAML_PARSER_NO_MEMO=1 (A/B escape hatch).
+(def MEMO
+  #?(:clj (and (not TRACE) (nil? (env "YAML_PARSER_NO_MEMO")))
+     :glj false))
+
+;; Rules safe for memoization: flow-context productions whose results
+;; depend only on (pos, args, doc flag, receiver-cache depth) plus the
+;; receiver volatiles snapshotted in memo-vol-keys. Their subtrees never
+;; call set*/auto-detect or read state :m/:t (block-only machinery).
+;; Must track rule names in the generated grammar (like callback-rules).
+(def ^:private memo-rules
+  #{"c_flow_sequence" "ns_s_flow_seq_entries" "ns_flow_seq_entry"
+    "c_flow_mapping" "ns_s_flow_map_entries" "ns_flow_map_entry"
+    "ns_flow_map_explicit_entry" "ns_flow_map_implicit_entry"
+    "ns_flow_map_yaml_key_entry" "c_ns_flow_map_empty_key_entry"
+    "c_ns_flow_map_json_key_entry" "c_ns_flow_map_separate_value"
+    "c_ns_flow_map_adjacent_value"
+    "ns_flow_pair" "ns_flow_pair_entry" "ns_flow_pair_yaml_key_entry"
+    "c_ns_flow_pair_json_key_entry"
+    "ns_s_implicit_yaml_key" "c_s_implicit_json_key"
+    "ns_flow_node" "c_flow_json_node" "ns_flow_yaml_node"
+    "ns_flow_content" "c_flow_json_content" "ns_flow_yaml_content"
+    "ns_plain" "c_single_quoted" "c_double_quoted"})
+
 ;; Default state when stack is empty
 (def default-state
   {:name nil
@@ -27,6 +53,7 @@
                 :pos (volatile! 0)
                 :end (volatile! 0)
                 :state (volatile! [])
+                :memo (volatile! {})
                 :trace-num (volatile! 0)
                 :trace-line (volatile! 0)
                 :trace-on (volatile! true)
@@ -137,6 +164,46 @@
                               :state (state-curr parser)
                               :start pos})))))))))
 
+;; Memoization support. A memo record stores the parse outcome of a
+;; whitelisted rule at a position: {:value :end-pos :events :entry-vols
+;; :exit-vols}. Events are the net delta appended to the receiver frame
+;; active at rule entry (the try/got/not cache brackets balance within
+;; the call, so all committed events land in that frame). The receiver
+;; volatiles below are the only mutable receiver state reachable from
+;; flow-rule handlers; a hit is valid only when their current values
+;; equal the recorded entry snapshot.
+(def ^:private memo-vol-keys
+  [:anchor :tag :tag-map :tag-handle
+   :document-start :document-end :in-scalar :first])
+
+(defn- memo-vols [receiver]
+  (mapv #(deref (get receiver %)) memo-vol-keys))
+
+(defn- memo-restore-vols! [receiver vols]
+  (dorun (map (fn [k v] (vreset! (get receiver k) v))
+              memo-vol-keys vols)))
+
+(defn- memo-frame-len [receiver top?]
+  (if top?
+    (count @(:events receiver))
+    (count (peek @(:cache receiver)))))
+
+(defn- memo-delta [receiver top? base]
+  (let [frame (if top?
+                @(:events receiver)
+                (peek @(:cache receiver)))]
+    (subvec frame base)))
+
+(defn- memo-replay! [parser receiver top? hit]
+  (vreset! (:pos parser) (:end-pos hit))
+  (when (seq (:events hit))
+    (if top?
+      (vswap! (:events receiver) into (:events hit))
+      (vswap! (:cache receiver)
+              (fn [c] (conj (pop c) (into (peek c) (:events hit)))))))
+  (memo-restore-vols! receiver (:exit-vols hit))
+  (:value hit))
+
 ;; Forward declarations for grammar functions
 (declare call)
 
@@ -176,30 +243,62 @@
                                   :else a))
                               args))
                  pos @(:pos parser)
-                 _ (receive parser func :try pos)
+                 receiver (when MEMO @(:receiver parser))
+                 memo? (and MEMO
+                            (= type "boolean")
+                            (contains? memo-rules trace)
+                            (nil? (some-> (:callback receiver) deref)))
+                 top? (when memo? (empty? @(:cache receiver)))
+                 memo-key (when memo?
+                            [trace pos args top?
+                             (boolean (:doc (state-curr parser)))])
+                 entry-vols (when memo? (memo-vols receiver))
+                 hit (when memo?
+                       (let [h (get @(:memo parser) memo-key)]
+                         (when (and h (= (:entry-vols h) entry-vols))
+                           h)))
+                 value
+                 (if hit
+                   (memo-replay! parser receiver top? hit)
+                   (let [depth (when memo? (count @(:cache receiver)))
+                         base (when memo? (memo-frame-len receiver top?))
+                         _ (receive parser func :try pos)
 
-                 ;; Call the function — bypass clojure.core/apply
-                 ;; when args is empty (common case) to avoid
-                 ;; lang.Apply []any allocation and reflection.
-                 value (loop [v (if (nil? args)
-                                  (func parser)
-                                  (apply func parser args))]
-                         (if (or (fn? v) (vector? v))
-                           (recur (call parser v))
-                           v))]
+                         ;; Call the function — bypass clojure.core/apply
+                         ;; when args is empty (common case) to avoid
+                         ;; lang.Apply []any allocation and reflection.
+                         value (loop [v (if (nil? args)
+                                          (func parser)
+                                          (apply func parser args))]
+                                 (if (or (fn? v) (vector? v))
+                                   (recur (call parser v))
+                                   v))]
 
-             ;; Type checking - nil is treated as false for boolean type
-             (when (and (not= type "any")
-                        (not= (typeof* value) type)
-                        (not (and (= type "boolean") (nil? value))))
-               (FAIL (str "Calling '" trace "' returned '" (typeof* value) "' instead of '" type "'")))
+                     ;; Type checking - nil is treated as false for boolean type
+                     (when (and (not= type "any")
+                                (not= (typeof* value) type)
+                                (not (and (= type "boolean") (nil? value))))
+                       (FAIL (str "Calling '" trace "' returned '" (typeof* value) "' instead of '" type "'")))
 
-             ;; Handle result
-             (if (not= type "boolean")
-               nil
-               (if value
-                 (receive parser func :got pos)
-                 (receive parser func :not pos)))
+                     ;; Handle result
+                     (if (not= type "boolean")
+                       nil
+                       (if value
+                         (receive parser func :got pos)
+                         (receive parser func :not pos)))
+
+                     ;; The cache-depth check guards against a rule that
+                     ;; leaves the receiver frame stack unbalanced; such
+                     ;; a result cannot be replayed from its entry frame.
+                     (when (and memo?
+                                (= depth (count @(:cache receiver))))
+                       (vswap! (:memo parser) assoc memo-key
+                               {:value value
+                                :end-pos @(:pos parser)
+                                :events (memo-delta receiver top? base)
+                                :entry-vols entry-vols
+                                :exit-vols (memo-vols receiver)}))
+                     value))]
 
              (state-pop parser)
              value)))))))
@@ -606,6 +705,7 @@
     (vreset! (:end parser) (count input))
     (vreset! (:pos parser) 0)
     (vreset! (:state parser) [])
+    (vreset! (:memo parser) {})
 
     (when TRACE
       (vreset! (:trace-on parser) (not (trace-start parser))))
