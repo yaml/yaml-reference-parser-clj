@@ -987,11 +987,7 @@
      (p/chr parser
        "x"
     ),
-    (p/rep parser
-       2,
-      2,
-      ns_hex_digit
-    )
+    (p/chars-rep parser 2, 2, [0x30 0x39 0x41 0x46 0x61 0x66])
   )))]
     (name* "ns_esc_8_bit"
       (fn ns_esc_8_bit-fn [parser]
@@ -1009,11 +1005,7 @@
      (p/chr parser
        "u"
     ),
-    (p/rep parser
-       4,
-      4,
-      ns_hex_digit
-    )
+    (p/chars-rep parser 4, 4, [0x30 0x39 0x41 0x46 0x61 0x66])
   )))]
     (name* "ns_esc_16_bit"
       (fn ns_esc_16_bit-fn [parser]
@@ -1031,11 +1023,7 @@
      (p/chr parser
        "U"
     ),
-    (p/rep parser
-       8,
-      8,
-      ns_hex_digit
-    )
+    (p/chars-rep parser 8, 8, [0x30 0x39 0x41 0x46 0x61 0x66])
   )))]
     (name* "ns_esc_32_bit"
       (fn ns_esc_32_bit-fn [parser]
@@ -1098,7 +1086,7 @@
         (when DEBUG (debug-rule "s_indent", n))
         (or (get @cache [n])
             (let [body
-  (p/rep parser n, n, s_space)]
+  (p/chars-rep parser n, n, [0x20 0x20])]
               (vswap! cache assoc [n] body)
               body)))
       nil)))
@@ -1343,11 +1331,7 @@
      (p/chr parser
        "\u0023"
     ),
-    (p/rep parser
-       0,
-      nil,
-      nb_char
-    )
+    (p/chars-rep parser 0, nil, [0x9 0x9 0x20 0x7E 0x85 0x85 0xA0 0xD7FF 0xE000 0xFEFE 0xFF00 0xFFFD 0x10000 0x10FFFF])
   )))]
     (name* "c_nb_comment_text"
       (fn c_nb_comment_text-fn [parser]
@@ -1598,19 +1582,11 @@
   (let [body (delay
                (let [parser nil]
     (p/all parser
-     (p/rep parser
-       1,
-      nil,
-      ns_dec_digit
-    ),
+     (p/chars-rep parser 1, nil, [0x30 0x39]),
     (p/chr parser
        "."
     ),
-    (p/rep2 parser
-       1,
-      nil,
-      ns_dec_digit
-    )
+    (p/chars-rep parser 1, nil, [0x30 0x39])
   )))]
     (name* "ns_yaml_version"
       (fn ns_yaml_version-fn [parser]
@@ -1703,11 +1679,7 @@
      (p/chr parser
        "!"
     ),
-    (p/rep parser
-       1,
-      nil,
-      ns_word_char
-    ),
+    (p/chars-rep parser 1, nil, [0x2D 0x2D 0x30 0x39 0x41 0x5A 0x61 0x7A]),
     (p/chr parser
        "!"
     )
@@ -4358,11 +4330,7 @@
   (let [body (delay
                (let [parser nil]
     (p/all parser
-     (p/rep parser
-       0,
-      1,
-      c_byte_order_mark
-    ),
+     (p/chars-rep parser 0, 1, [0xFEFF 0xFEFF]),
     (p/rep2 parser
        0,
       nil,

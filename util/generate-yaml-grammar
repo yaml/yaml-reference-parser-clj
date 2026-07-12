@@ -528,8 +528,29 @@ defn gen-group(ctx items kind):
   generated =: items.map(\(gen(group-ctx _)))
   gen-method-call: group-ctx kind generated*
 
+# Reps over a pure character class fuse into one scanning matcher.
+# Excluded: the live-chain rules (rep frames feed callback chains) and
+# s-indent-lt/le, whose p/match "" invariant depends on the rep frame's
+# final zero-width bookkeeping.
+REP-FUSE-EXCLUDE =: \{'s-indent-lt' 's-indent-le'}
+
 defn gen-rep(ctx rule min max):
   rep-num =: swap(ctx.rep-count inc)
+  ranges =:
+    when rep-fusable?(ctx):
+      class-of(ctx.classes rule false)
+  if ranges:
+    then: +
+      "(p/chars-rep parser $(gen-limit(min)), $(gen-limit(max)),
+       [$(flat-ranges(ranges))])"
+    else: gen-rep-call(ctx rule min max rep-num)
+
+defn rep-fusable?(ctx):
+  ctx.classes.? &&
+  contains?(LIVE-CHAIN-RULES ctx.rule-name).! &&
+  contains?(REP-FUSE-EXCLUDE ctx.rule-name).!
+
+defn gen-rep-call(ctx rule min max rep-num):
   rep-fn =:
     if rep-num > 1:
       then: 'rep2'

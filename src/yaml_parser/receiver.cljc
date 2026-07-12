@@ -66,9 +66,25 @@
 (defn cache-text [text]
   {:text text})
 
+;; Callback rules whose handlers act only while :in-scalar is true
+;; (block scalar parsing). Outside that mode the parser prunes their
+;; dispatch nodes so these per-character rules can skip frame and
+;; dispatch bookkeeping entirely; set-scalar-mode! swaps the active
+;; root table on transitions.
+(def scalar-mode-rules
+  #{"ns_char" "s_white" "l_empty"})
+
+(defn- set-scalar-mode! [receiver on]
+  (vreset! (:in-scalar receiver) on)
+  (when-let [parser (:parser receiver)]
+    (when (map? parser)
+      (vreset! (:cb-roots parser)
+               @(if on (:cb-roots-all parser) (:cb-roots-base parser))))))
+
 ;; Receiver state
 (defn make-receiver []
-  {:events (volatile! [])
+  {:scalar-mode-rules scalar-mode-rules
+   :events (volatile! [])
    :cache (volatile! [])
    :anchor (volatile! nil)
    :tag (volatile! nil)
@@ -443,12 +459,12 @@
 
    "try__c_l_literal"
    (fn [receiver o]
-     (vreset! (:in-scalar receiver) true)
+     (set-scalar-mode! receiver true)
      (cache-up receiver))
 
    "got__c_l_literal"
    (fn [receiver o]
-     (vreset! (:in-scalar receiver) false)
+     (set-scalar-mode! receiver false)
      (let [lines (cache-drop receiver)
            lines (if (and (seq lines) (= "" (:text (last lines))))
                    (butlast lines)
@@ -466,7 +482,7 @@
 
    "not__c_l_literal"
    (fn [receiver o]
-     (vreset! (:in-scalar receiver) false)
+     (set-scalar-mode! receiver false)
      (cache-drop receiver))
 
    ;; Folded block scalar
@@ -490,13 +506,13 @@
 
    "try__c_l_folded"
    (fn [receiver o]
-     (vreset! (:in-scalar receiver) true)
+     (set-scalar-mode! receiver true)
      (vreset! (:first receiver) "")
      (cache-up receiver))
 
    "got__c_l_folded"
    (fn [receiver o]
-     (vreset! (:in-scalar receiver) false)
+     (set-scalar-mode! receiver false)
      (let [lines (map :text (cache-drop receiver))
            text (str/join "\n" lines)
            text #?(:clj (-> text
@@ -522,7 +538,7 @@
 
    "not__c_l_folded"
    (fn [receiver o]
-     (vreset! (:in-scalar receiver) false)
+     (set-scalar-mode! receiver false)
      (cache-drop receiver))
 
    ;; Empty scalar

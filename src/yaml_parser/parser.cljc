@@ -69,6 +69,8 @@
                 :state (volatile! [])
                 :memo (volatile! {})
                 :cb-roots (volatile! {})
+                :cb-roots-all (volatile! {})
+                :cb-roots-base (volatile! {})
                 :cb-chains (volatile! #{})
                 :trace-num (volatile! 0)
                 :trace-line (volatile! 0)
@@ -124,13 +126,15 @@
   #{"l_literal_content" "l_folded_content"})
 
 ;; Rules that must always get a real state frame even when their
-;; dispatch node is nil: callback anchors keep receiver semantics,
-;; memoized rules need the slow path's memo hook, l_bare_document
-;; carries the :doc flag the-end reads, and the :full roots/clears
-;; must exist to toggle the flag.
+;; dispatch node is nil: memoized rules need the slow path's memo
+;; hook, l_bare_document carries the :doc flag the-end reads, and the
+;; :full roots/clears must exist to toggle the flag. Callback anchors
+;; need no entry here: a live dispatch node already forces the slow
+;; path, and when a scalar-mode rule's node is pruned (see
+;; scalar-mode-rules in receiver.cljc) its frame is intentionally
+;; skippable.
 (def ^:private frame-required-rules
-  (-> callback-rules
-      (into memo-rules)
+  (-> memo-rules
       (into full-frame-roots)
       (into full-frame-clears)
       (conj "l_bare_document")))
@@ -580,6 +584,50 @@
         (vswap! rng-cache assoc [low high] f)
         f)))
 
+;; Fused rep over a character class: scans codepoints in ranges (same
+;; representation as chars) up to max (nil = unbounded), succeeding
+;; when at least min matched, else resetting pos. Equivalent to
+;; (rep min max <class matcher>) including the per-position the-end
+;; guard, in a single call.
+(defn chars-rep [parser min max ranges]
+  (let [n (count ranges)]
+    (leaf*
+     (name* "chars+"
+       (fn chars-rep-fn [p]
+         (let [input @(:input p)
+               end (long @(:end p))
+               pos0 (long @(:pos p))
+               doc (:doc (state-curr p))]
+           (loop [pos pos0
+                  cnt 0]
+             (if (or (and max (>= cnt max))
+                     (>= pos end)
+                     (and doc
+                          (or (zero? pos)
+                              (= (nth input (dec pos)) \newline))
+                          #?(:clj (doc-end-marker? input pos)
+                             :glj (re-find #"^(?:---|\.\.\.)(\s|$)"
+                                           (subs input pos)))))
+               (do (vreset! (:pos p) pos)
+                   (or (>= cnt min)
+                       (do (vreset! (:pos p) pos0) false)))
+               (let [cp #?(:clj (Character/codePointAt input pos)
+                           :glj (int (nth input pos)))
+                     w (loop [i 0]
+                         (if (< i n)
+                           (if (< cp (nth ranges i))
+                             0
+                             (if (<= cp (nth ranges (inc i)))
+                               #?(:clj (Character/charCount cp) :glj 1)
+                               (recur (+ i 2))))
+                           0))]
+                 (if (zero? w)
+                   (do (vreset! (:pos p) pos)
+                       (or (>= cnt min)
+                           (do (vreset! (:pos p) pos0) false)))
+                   (recur (+ pos w) (inc cnt))))))))
+       "chars+"))))
+
 ;; Fused character-class matcher. ranges is a flat, sorted,
 ;; non-overlapping vector [lo0 hi0 lo1 hi1 ...] of inclusive codepoint
 ;; bounds, computed at grammar-generation time from the spec's
@@ -1000,11 +1048,23 @@
     (vreset! (:pos parser) 0)
     (vreset! (:state parser) [])
     (vreset! (:memo parser) {})
-    (let [prefixes (callback-chain-prefixes
-                    (:callbacks @(:receiver parser)))]
+    (let [receiver @(:receiver parser)
+          prefixes (callback-chain-prefixes (:callbacks receiver))
+          all-roots (build-cb-roots receiver prefixes)
+          ;; Roots whose handlers only act during block scalar parsing
+          ;; (receiver.cljc scalar-mode-rules) start out pruned; the
+          ;; receiver swaps :cb-roots between base and all on
+          ;; :in-scalar transitions. Pruned rules run frameless.
+          base-roots (reduce (fn [acc r] (assoc acc r nil))
+                             all-roots
+                             (or (:scalar-mode-rules receiver) #{}))]
       (vreset! (:cb-chains parser) prefixes)
+      (vreset! (:cb-roots-all parser) all-roots)
+      (vreset! (:cb-roots-base parser) base-roots)
       (vreset! (:cb-roots parser)
-               (build-cb-roots @(:receiver parser) prefixes)))
+               (if (some-> (:in-scalar receiver) deref)
+                 all-roots
+                 base-roots)))
 
     (when TRACE
       (vreset! (:trace-on parser) (not (trace-start parser))))
