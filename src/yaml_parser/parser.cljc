@@ -45,12 +45,14 @@
     "ns_plain" "c_single_quoted" "c_double_quoted"})
 
 ;; Parse state frame. :node is the frame's precomputed receiver
-;; dispatch node (see build-cb-roots/frame-node).
-(defrecord StateFrame [name node doc lvl beg end m t])
+;; dispatch node (see build-cb-roots/frame-node); :full marks subtrees
+;; whose exact frame-stack shape is load-bearing (set* ancestor walks,
+;; p/match scans), disabling the frameless fast path inside them.
+(defrecord StateFrame [name node doc lvl beg end m t full])
 
 ;; Default state when stack is empty
 (def default-state
-  (->StateFrame nil nil false 0 0 nil nil nil))
+  (->StateFrame nil nil false 0 0 nil nil nil false))
 
 ;; Parser state - uses volatiles for mutable state
 (defn make-parser [receiver]
@@ -99,6 +101,34 @@
     "s_l_block_collection" "c_ns_anchor_property" "c_ns_tag_property"
     "c_ns_alias_node"})
 
+;; Frame-shape-sensitive subtrees. set* writes :m/:t into ancestor
+;; frames positionally and stops at the s_l_block_scalar frame; p/match
+;; scans for the deepest frame with :end set, at three grammar sites
+;; (s_indent_lt, s_indent_le, c_indentation_indicator). Entering these
+;; rules sets :full on the frame (inherited like :doc), which keeps
+;; every descendant on the slow path so the stack shape those readers
+;; see is unchanged.
+(def ^:private full-frame-roots
+  #{"s_l_block_scalar" "s_indent_lt" "s_indent_le"})
+
+;; Block scalar CONTENT has no set*/match readers (they all live in the
+;; header, fully parsed before content starts), so clear :full there;
+;; the l_empty -> s_indent_lt/le descendants re-set it via the roots.
+(def ^:private full-frame-clears
+  #{"l_literal_content" "l_folded_content"})
+
+;; Rules that must always get a real state frame even when their
+;; dispatch node is nil: callback anchors keep receiver semantics,
+;; memoized rules need the slow path's memo hook, l_bare_document
+;; carries the :doc flag the-end reads, and the :full roots/clears
+;; must exist to toggle the flag.
+(def ^:private frame-required-rules
+  (-> callback-rules
+      (into memo-rules)
+      (into full-frame-roots)
+      (into full-frame-clears)
+      (conj "l_bare_document")))
+
 ;; Receiver callback routing. Dispatch is resolved once per state
 ;; frame at push time: a frame whose rule name contains "_" is an
 ;; anchor and gets its node from cb-roots (nil unless the rule is in
@@ -106,11 +136,17 @@
 ;; caching the resolved child per distinct chain in :kids. The chain
 ;; name matches the old scan-and-mangle scheme: anchor name joined
 ;; with the paren-stripped (or chr->hex) frame names above it.
-(defn- build-cb-roots [receiver]
+;; :ext marks nodes whose chain is a proper prefix of some callback
+;; key: real frames must exist below them so descendant chains resolve
+;; exactly (both extension and the reset at rule frames). Below
+;; non-:ext nodes every descendant chain is dead, so frames there are
+;; pure bookkeeping and the frameless fast path may skip them.
+(defn- build-cb-roots [receiver prefixes]
   (let [callbacks (:callbacks receiver)]
     (reduce (fn [acc name]
               (assoc acc name
                      {:chain name
+                      :ext (contains? prefixes name)
                       :cbs {:try (get callbacks (str "try__" name))
                             :got (get callbacks (str "got__" name))
                             :not (get callbacks (str "not__" name))}
@@ -149,9 +185,10 @@
                 try-cb (get callbacks (str "try__" chain))
                 got-cb (get callbacks (str "got__" chain))
                 not-cb (get callbacks (str "not__" chain))
-                node (when (or try-cb got-cb not-cb
-                               (contains? @(:cb-chains parser) chain))
+                ext (contains? @(:cb-chains parser) chain)
+                node (when (or try-cb got-cb not-cb ext)
                        {:chain chain
+                        :ext ext
                         :cbs {:try try-cb :got got-cb :not not-cb}
                         :kids (volatile! {})})]
             (vswap! kids assoc name node)
@@ -173,7 +210,11 @@
                            @(:pos parser)
                            nil
                            (:m curr)
-                           (:t curr))))))
+                           (:t curr)
+                           (cond
+                             (contains? full-frame-clears name) false
+                             (contains? full-frame-roots name) true
+                             :else (:full curr)))))))
 
 (defn state-pop [parser]
   (let [state @(:state parser)
@@ -262,13 +303,31 @@
                trace (or #?(:clj (:trace fmeta) :glj (func-name func))
                          (str func))
                curr (state-curr parser)
-               node (frame-node parser (:node curr) trace)]
-           (if (and FAST (:leaf fmeta) (nil? node))
+               node (frame-node parser (:node curr) trace)
+               ;; Frameless additionally requires the parent node to be
+               ;; non-extensible: a skipped frame's descendants resolve
+               ;; their chains against the nearest real ancestor, so
+               ;; skipping a frame under an :ext node would let inner
+               ;; combinators of unrelated rules reconnect to a live
+               ;; chain and fire its callbacks (rule frames reset
+               ;; chains; that reset must be preserved by a real
+               ;; frame). Leaves have no descendants, so their own nil
+               ;; node suffices.
+               fast (when (and FAST (nil? node))
+                      (cond
+                        (:leaf fmeta) :leaf
+                        (and (not (:ext (:node curr)))
+                             (not (:full curr))
+                             (not (contains? frame-required-rules trace)))
+                        :frameless
+                        :else nil))]
+           (case fast
              ;; Leaf fast path: chr/rng/chars matchers make no nested
              ;; calls and no callback can fire here, so skip the frame,
              ;; receive dispatch and memo gate. The parent frame still
              ;; gets the :beg/:end update state-pop would have written;
-             ;; the p/match sites depend on it.
+             ;; the p/match sites depend on it (safe even under :full).
+             :leaf
              (let [pos0 @(:pos parser)
                    value (func parser)]
                (vswap! (:state parser)
@@ -280,6 +339,41 @@
                                                :beg pos0
                                                :end @(:pos parser)))))))
                value)
+
+             ;; Frameless fast path: combinators and plain rules where
+             ;; no callback can fire, outside frame-shape-sensitive
+             ;; (:full) subtrees and not in frame-required-rules.
+             ;; Everything they or their subtrees observe (:doc, :m,
+             ;; :t via inheritance; pos via volatiles) is unaffected
+             ;; by the missing frame.
+             :frameless
+             (let [args (when (and fvec (> (count fvec) 1))
+                          (mapv (fn [a]
+                                  (cond
+                                    (vector? a) (call parser a "any")
+                                    (fn? a) (call parser a "any")
+                                    :else a))
+                                (subvec fvec 1)))
+                   value (loop [v (if (nil? args)
+                                    (func parser)
+                                    (case (count args)
+                                      1 (func parser (nth args 0))
+                                      2 (func parser (nth args 0)
+                                              (nth args 1))
+                                      (apply func parser args)))]
+                           (if (or (fn? v) (vector? v))
+                             (recur (call parser v))
+                             v))]
+               (when (and (not= type "any")
+                          (if (= type "boolean")
+                            (not (or (nil? value)
+                                     (true? value)
+                                     (false? value)))
+                            (not= (typeof* value) type)))
+                 (FAIL (str "Calling '" trace "' returned '" (typeof* value) "' instead of '" type "'")))
+               value)
+
+             ;; Slow path: full frame, receive dispatch, memoization
              (do
                (state-push parser trace (= trace "l_bare_document") node)
 
@@ -900,9 +994,11 @@
     (vreset! (:pos parser) 0)
     (vreset! (:state parser) [])
     (vreset! (:memo parser) {})
-    (vreset! (:cb-roots parser) (build-cb-roots @(:receiver parser)))
-    (vreset! (:cb-chains parser)
-             (callback-chain-prefixes (:callbacks @(:receiver parser))))
+    (let [prefixes (callback-chain-prefixes
+                    (:callbacks @(:receiver parser)))]
+      (vreset! (:cb-chains parser) prefixes)
+      (vreset! (:cb-roots parser)
+               (build-cb-roots @(:receiver parser) prefixes)))
 
     (when TRACE
       (vreset! (:trace-on parser) (not (trace-start parser))))
