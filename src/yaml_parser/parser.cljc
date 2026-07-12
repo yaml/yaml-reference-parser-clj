@@ -17,6 +17,14 @@
   #?(:clj (and (not TRACE) (nil? (env "YAML_PARSER_NO_MEMO")))
      :glj false))
 
+;; Fast paths in call skip per-frame bookkeeping (state frame, receive
+;; dispatch, memo gate) for calls whose dispatch node is nil, i.e.
+;; where no receiver callback can fire. Disabled under TRACE (frames
+;; feed trace output) and via YAML_PARSER_NO_FAST=1 (A/B escape hatch).
+(def FAST
+  #?(:clj (and (not TRACE) (nil? (env "YAML_PARSER_NO_FAST")))
+     :glj false))
+
 ;; Rules safe for memoization: flow-context productions whose results
 ;; depend only on (pos, args, doc flag, receiver-cache depth) plus the
 ;; receiver volatiles snapshotted in memo-vol-keys. Their subtrees never
@@ -151,12 +159,15 @@
           k)))))
 
 (defn state-push
-  ([parser name] (state-push parser name false))
-  ([parser name doc]
+  ([parser name]
+   (let [curr (state-curr parser)]
+     (state-push parser name false
+                 (frame-node parser (:node curr) name))))
+  ([parser name doc node]
    (let [curr (state-curr parser)]
      (vswap! (:state parser) conj
              (->StateFrame name
-                           (frame-node parser (:node curr) name)
+                           node
                            (if doc true (:doc curr))
                            (inc (:lvl curr))
                            @(:pos parser)
@@ -247,9 +258,30 @@
          (when-not (fn? func)
            (FAIL (str "Bad call type '" (typeof* func) "' for '" func "'")))
 
-         ;; func-name reads the :trace metadata set by name*
-         (let [trace (or (func-name func) (str func))]
-           (state-push parser trace (= trace "l_bare_document"))
+         (let [fmeta #?(:clj (meta func) :glj nil)
+               trace (or #?(:clj (:trace fmeta) :glj (func-name func))
+                         (str func))
+               curr (state-curr parser)
+               node (frame-node parser (:node curr) trace)]
+           (if (and FAST (:leaf fmeta) (nil? node))
+             ;; Leaf fast path: chr/rng/chars matchers make no nested
+             ;; calls and no callback can fire here, so skip the frame,
+             ;; receive dispatch and memo gate. The parent frame still
+             ;; gets the :beg/:end update state-pop would have written;
+             ;; the p/match sites depend on it.
+             (let [pos0 @(:pos parser)
+                   value (func parser)]
+               (vswap! (:state parser)
+                       (fn [s]
+                         (let [i (dec (count s))]
+                           (if (neg? i)
+                             s
+                             (assoc s i (assoc (nth s i)
+                                               :beg pos0
+                                               :end @(:pos parser)))))))
+               value)
+             (do
+               (state-push parser trace (= trace "l_bare_document") node)
 
            ;; Evaluate arguments (skip mapv when no args)
            (let [args (when (and fvec (> (count fvec) 1))
@@ -325,7 +357,7 @@
                      value))]
 
              (state-pop parser)
-             value)))))))
+             value)))))))))
 ;; Special functions - internal versions
 (defn start-of-line* [parser]
   (let [pos @(:pos parser)
@@ -399,19 +431,26 @@
 ;; combinator trees on every invocation, so these matchers are cached
 ;; by their construction args (they don't capture the parser). The
 ;; caches are bounded by the distinct chars/ranges in the grammar.
+;; Matchers carry :leaf metadata: they consume at most one codepoint,
+;; make no nested calls, and are eligible for call's leaf fast path.
+(defn- leaf* [f]
+  #?(:clj (vary-meta f assoc :leaf true)
+     :glj f))
+
 (def ^:private chr-cache (volatile! {}))
 
 (defn chr [parser char]
   (or (get @chr-cache char)
       (let [trace (str "chr(" (stringify char) ")")
             c (first char)
-            f (name* trace
-                (fn chr-fn [p]
-                  (when-not (the-end p)
-                    (when (= (nth @(:input p) @(:pos p)) c)
-                      (vswap! (:pos p) inc)
-                      true)))
-                trace)]
+            f (leaf*
+               (name* trace
+                 (fn chr-fn [p]
+                   (when-not (the-end p)
+                     (when (= (nth @(:input p) @(:pos p)) c)
+                       (vswap! (:pos p) inc)
+                       true)))
+                 trace))]
         (vswap! chr-cache assoc char f)
         f)))
 
@@ -424,20 +463,52 @@
                   :glj (int (first low)))
             hi #?(:clj (Character/codePointAt ^String high 0)
                   :glj (int (first high)))
-            f (name* trace
-                (fn rng-fn [p]
-                  (when-not (the-end p)
-                    (let [input @(:input p)
-                          pos @(:pos p)
-                          cp #?(:clj (Character/codePointAt ^String input pos)
-                                :glj (int (nth input pos)))]
-                      (when (and (>= cp lo) (<= cp hi))
-                        (vswap! (:pos p) + #?(:clj (Character/charCount cp)
-                                               :glj 1))
-                        true))))
-                trace)]
+            f (leaf*
+               (name* trace
+                 (fn rng-fn [p]
+                   (when-not (the-end p)
+                     (let [input @(:input p)
+                           pos @(:pos p)
+                           cp #?(:clj (Character/codePointAt ^String input pos)
+                                 :glj (int (nth input pos)))]
+                       (when (and (>= cp lo) (<= cp hi))
+                         (vswap! (:pos p) + #?(:clj (Character/charCount cp)
+                                                :glj 1))
+                         true))))
+                 trace))]
         (vswap! rng-cache assoc [low high] f)
         f)))
+
+;; Fused character-class matcher. ranges is a flat, sorted,
+;; non-overlapping vector [lo0 hi0 lo1 hi1 ...] of inclusive codepoint
+;; bounds, computed at grammar-generation time from the spec's
+;; chr/rng/any/but class algebra (see util/generate-yaml-grammar).
+;; Matches one codepoint with rng semantics (codePointAt + charCount
+;; advance, astral-aware), guarded by the-end. Constructed once per
+;; site by the generated rule templates, so no cache is needed. The
+;; constant trace name has no underscore, so frame-node treats it as
+;; a chain element; no callback chain contains "chars".
+(defn chars [parser ranges]
+  (let [n (count ranges)]
+    (leaf*
+     (name* "chars"
+       (fn chars-fn [p]
+         (when-not (the-end p)
+           (let [input @(:input p)
+                 pos @(:pos p)
+                 cp #?(:clj (Character/codePointAt ^String input pos)
+                       :glj (int (nth input pos)))]
+             (loop [i 0]
+               (when (< i n)
+                 (if (< cp (nth ranges i))
+                   nil
+                   (if (<= cp (nth ranges (inc i)))
+                     (do (vswap! (:pos p) +
+                                 #?(:clj (Character/charCount cp)
+                                    :glj 1))
+                         true)
+                     (recur (+ i 2)))))))))
+       "chars"))))
 
 ;; Combinators
 (defn all [parser & funcs]
