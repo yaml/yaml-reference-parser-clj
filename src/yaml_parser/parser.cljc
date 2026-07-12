@@ -433,7 +433,8 @@
 ;; caches are bounded by the distinct chars/ranges in the grammar.
 ;; Matchers carry :leaf metadata: they consume at most one codepoint,
 ;; make no nested calls, and are eligible for call's leaf fast path.
-(defn- leaf* [f]
+;; Public because the generated grammar marks fused class rules too.
+(defn leaf* [f]
   #?(:clj (vary-meta f assoc :leaf true)
      :glj f))
 

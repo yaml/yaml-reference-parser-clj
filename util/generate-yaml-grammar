@@ -4,9 +4,13 @@ defn main(*args):
   opts =: parse-args(args)
   when-not opts.from:
     die: 'Usage: generate-yaml-grammar --from <spec.yaml>
-          [--rule <top-rule>] [--namespace <prefix>]'
+          [--rule <top-rule>] [--namespace <prefix>]
+          [--no-fuse] [--dump-classes]'
   spec-text =: read(opts.from)
-  say: gen-grammar(spec-text opts.rule opts.namespace)
+  if opts.dump-classes:
+    then: dump-classes(spec-text)
+    else:
+      say: gen-grammar(spec-text opts.rule opts.namespace opts.no-fuse)
 
 REP-COUNT =: atom(0)
 
@@ -36,21 +40,29 @@ defn parse-args-step(opts args):
           parse-args-step: opts.assoc(:rule subs(arg 7)) more
         arg.starts?('--namespace='):
           parse-args-step: opts.assoc(:namespace subs(arg 12)) more
+        arg == '--no-fuse':
+          parse-args-step: opts.assoc(:no-fuse true) more
+        arg == '--dump-classes':
+          parse-args-step: opts.assoc(:dump-classes true) more
         else:
           throw:
             ex-info: +
               "Unknown argument:\ $arg"
               {:arg arg}
 
-defn gen-grammar(spec-text top ns-prefix):
+defn gen-grammar(spec-text top ns-prefix no-fuse=false):
   spec =: yaml/load(spec-text)
   comments =: get-comments(spec-text)
   nums =: build-nums(spec)
   rule-names =:
     spec:keys.map(key-name).filter(\(_.starts?(':').!))
+  classes =:
+    when-not no-fuse:
+      build-class-table(spec)
   head =: gen-grammar-head(top:rule-name ns-prefix)
   declarations =: rule-names.map(\("  $(rule-name(_))")):text:chomp
-  rules =: rule-names.map(\(gen-rule(spec nums comments _))):join
+  rules =:
+    rule-names.map(\(gen-rule(spec nums comments classes _))):join
   =>: |-
     $head
     (declare
@@ -87,7 +99,123 @@ defn gen-grammar-head(top-name ns-prefix): |
   (defn empty [parser]
     (p/empty-rule parser))
 
-defn gen-rule(spec nums comments name):
+# Character-class fusion. Rules whose bodies reduce to chr/rng/any/but
+# algebra over single-codepoint matchers are compiled at generation
+# time into one fused matcher over a sorted codepoint range set:
+# chr = singleton, rng = range, (any) = union, (---) = difference.
+# References to the barrier rules below never fuse into OTHER rules
+# (they carry receiver callbacks that must keep firing per call), but
+# their own bodies still fuse. Barrier names must track the per-char
+# callback rules in src/yaml_parser/parser.cljc (callback-rules).
+FUSE-BARRIER =: \{'ns-char' 's-white'}
+
+RULE-REF-RE =: /^(?:b|c|e|l|nb|ns|s)(?:[-+][a-z0-9]+)+$/
+
+defn build-class-table(spec):
+  names =: spec:keys.map(key-name).filter(\(_.starts?(':').!))
+  init =: +{}
+  reduce _ init names:
+    fn(table name):
+      table.assoc(name rule-class(spec table name))
+
+defn rule-class(spec table name):
+  pair =: setm-and-rule(kget(spec name))
+  setm =: pair.0
+  rule =: pair.1
+  cond:
+    setm != '': nil
+    map?(rule) && kget(rule '(...)'): nil
+    else: class-of(table rule contains?(FUSE-BARRIER name))
+
+defn class-of(table expr allow-barrier):
+  cond:
+    string?(expr): class-of-string(table expr allow-barrier)
+    sequential?(expr): class-of-range(expr)
+    map?(expr): class-of-hash(table expr allow-barrier)
+
+defn class-of-string(table s allow-barrier):
+  hex =: re-matches(/^x([0-9A-F]+)$/ s)
+  cond:
+    hex:
+      cp =: hex-int(hex.1)
+      =>: +[[cp cp]]
+    re-matches(RULE-REF-RE s):
+      when allow-barrier || contains?(FUSE-BARRIER s).!:
+        table.get(s)
+    s.# == 1:
+      cp =: int(first(s))
+      =>: +[[cp cp]]
+
+defn class-of-range(expr):
+  hexes =:
+    (expr.# == 2) &&
+    string?(expr.0) && re-matches(/^x[0-9A-F]+$/ expr.0) &&
+    string?(expr.1) && re-matches(/^x[0-9A-F]+$/ expr.1)
+  when hexes:
+    lo =: hex-int(expr.0.drop(1):join)
+    hi =: hex-int(expr.1.drop(1):join)
+    =>: +[[lo hi]]
+
+defn class-of-hash(table expr allow-barrier):
+  keys =: expr:keys
+  when keys.# == 1:
+    key-str =: key-name(keys.0)
+    val =: listify(expr.get(keys.0))
+    cond:
+      key-str == '(any)': class-union(table val allow-barrier)
+      key-str == '(---)': class-diff(table val allow-barrier)
+
+defn class-union(table items allow-barrier):
+  classes =: items.map(\(class-of(table _ allow-barrier)))
+  when-not some(nil? classes):
+    normalize-ranges: apply(concat classes)
+
+defn class-diff(table items allow-barrier):
+  classes =: items.map(\(class-of(table _ allow-barrier)))
+  when-not some(nil? classes):
+    reduce range-subtract: classes.0 rest(classes)
+
+defn normalize-ranges(ranges):
+  sorted =: sort-by(first ranges)
+  init =: +[]
+  reduce _ init sorted:
+    fn(acc r):
+      prev =: acc.$
+      if prev && (first(r) <= prev.1.++):
+        then: acc:pop.conj([prev.0 max(prev.1 last(r))])
+        else: acc.conj(vec(r))
+
+defn range-subtract(a-ranges b-ranges):
+  reduce _ a-ranges b-ranges:
+    fn(acc b):
+      acc.mapcat(\(subtract-one(_ b))):V
+
+defn subtract-one([lo hi] [blo bhi]):
+  cond:
+    (bhi < lo) || (blo > hi): +[[lo hi]]
+    (blo <= lo) && (bhi >= hi): +[]
+    (blo > lo) && (bhi < hi): +[[lo blo.--] [bhi.++ hi]]
+    blo <= lo: +[[bhi.++ hi]]
+    else: +[[lo blo.--]]
+
+defn hex-int(h):
+  Long/parseLong: h 16
+
+defn dump-classes(spec-text):
+  spec =: yaml/load(spec-text)
+  table =: build-class-table(spec)
+  names =: spec:keys.map(key-name).filter(\(_.starts?(':').!))
+  each name names:
+    ranges =: table.get(name)
+    when ranges:
+      say: "$name:\ $(ranges.map(fmt-range):joins)"
+
+defn fmt-range([lo hi]):
+  if lo == hi:
+    then: format('[%X]' lo)
+    else: format('[%X-%X]' lo hi)
+
+defn gen-rule(spec nums comments classes name):
   base-rule =: kget(spec name)
   setm-rule =: setm-and-rule(base-rule)
   setm =: setm-rule.0
@@ -105,12 +233,21 @@ defn gen-rule(spec nums comments name):
   ctx =: new-ctx().assoc(
     :num num
     :setm setm
-    :args args)
+    :args args
+    :classes classes
+    :rule-name name)
   rule-body =: indent(gen(ctx rule))
   setm-close =: gen-setm-close(setm)
   has-flip =: has-text?(rule-body 'p/flip')
   cacheable =: (setm == '') && has-flip.!
+  ranges =: classes && classes.get(name)
   cond:
+    ranges:
+      gen-class-rule:
+        comment
+        rule-name-str
+        ranges
+        contains?(FUSE-BARRIER name).!
     cacheable && (args.# == 0):
       # No runtime args and a pure-constructor body: build the
       # combinator tree once on first use (delay defers evaluation
@@ -152,6 +289,68 @@ defn gen-rule(spec nums comments name):
               (when DEBUG (debug-rule "$rule-name-str"$debug-args))
           $rule-body$setm-close)
             nil))
+
+# Class rules build their fused matcher once and invoke it directly.
+# Non-barrier class rules are additionally leaf-marked: call may skip
+# their frame entirely when no receiver callback can fire there.
+# Barrier rules keep normal frames so their callbacks fire per call.
+defn gen-class-rule(comment name ranges leaf):
+  matcher =: gen-matcher(ranges)
+  if leaf:
+    then:
+      str: |+
+        ${comment}(def $name
+          (let [body $matcher]
+            (p/leaf*
+             (name* "$name"
+               (fn ${name}-fn [parser]
+                 (when DEBUG (debug-rule "$name"))
+                 (body parser))
+               nil))))
+    else:
+      str: |+
+        ${comment}(def $name
+          (let [body $matcher]
+            (name* "$name"
+              (fn ${name}-fn [parser]
+                (when DEBUG (debug-rule "$name"))
+                (body parser))
+              nil)))
+
+defn gen-matcher(ranges):
+  cond:
+    (ranges.# == 1) && (ranges.0.0 == ranges.0.1):
+      "(p/chr nil $(gen-hex-code(format('%X' ranges.0.0))))"
+    ranges.# == 1:
+      str:
+        =>: "(p/rng nil $(gen-hex-code(format('%X' ranges.0.0)))"
+        =>: " $(gen-hex-code(format('%X' ranges.0.1))))"
+    else:
+      "(p/chars nil [$(flat-ranges(ranges))])"
+
+defn flat-ranges(ranges):
+  ranges.mapcat(a).map(\(format('0x%X' _))):joins
+
+# Rules whose receiver-callback chains pass through combinator frames
+# (see receiver.cljc chain keys like c_flow_sequence__all__x5b): never
+# fuse subexpressions inside them, their frame structure is load-bearing.
+LIVE-CHAIN-RULES =:
+  \{'c-flow-mapping' 'c-flow-sequence' 'l-nb-literal-text'
+    's-nb-folded-text' 's-nb-spaced-text' 's-l+block-collection'}
+
+defn gen-group-or-chars(ctx val kind):
+  items =: listify(val)
+  fusable =:
+    ctx.classes &&
+    contains?(LIVE-CHAIN-RULES ctx.rule-name).!
+  ranges =:
+    when fusable:
+      if kind == 'any':
+        then: class-union(ctx.classes items false)
+        else: class-diff(ctx.classes items false)
+  if ranges:
+    then: "(p/chars parser [$(flat-ranges(ranges))])"
+    else: gen-group(ctx val kind)
 
 defn setm-and-rule(rule):
   cond:
@@ -242,9 +441,9 @@ defn gen-from-hash(ctx rule):
     re-matches(/^(([bcls]|n[bs]|in|seq)[-+][-+a-z0-9]+)$/ key-str):
       gen-call: ctx key-str val
     key-str == 'auto-detect': gen-call(ctx key-str val)
-    key-str == '(any)': gen-group(ctx val 'any')
+    key-str == '(any)': gen-group-or-chars(ctx val 'any')
     key-str == '(all)': gen-group(ctx val 'all')
-    key-str == '(---)': gen-group(ctx val 'but')
+    key-str == '(---)': gen-group-or-chars(ctx val 'but')
     key-str == '(+++)': gen-rep(ctx val 1 nil)
     key-str == '(***)': gen-rep(ctx val 0 nil)
     key-str == '(???)': gen-rep(ctx val 0 1)
@@ -548,6 +747,7 @@ defn new-ctx():
   ctx =: ctx.assoc(:group false)
   ctx =: ctx.assoc(:args args)
   ctx =: ctx.assoc(:setm '')
+  ctx =: ctx.assoc(:classes nil)
   ctx: .assoc(:rep-count REP-COUNT)
 
 defn throw-rule-error(ctx message data):
