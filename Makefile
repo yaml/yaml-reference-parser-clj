@@ -54,5 +54,16 @@ jar: $(PERL) $(CLOJURE)
 deploy: $(PERL) $(CLOJURE)
 	$(CLOJURE) -T:build deploy
 
+release: $(PERL) $(CLOJURE)
+	@[ -n "$(VERSION)" ] || { echo "usage: make release VERSION=x.y.z"; exit 1; }
+	@[ -n "$$CLOJARS_USERNAME" ] && [ -n "$$CLOJARS_PASSWORD" ] || \
+	  { echo "CLOJARS_USERNAME and CLOJARS_PASSWORD must be set"; exit 1; }
+	@git diff --quiet && git diff --cached --quiet || \
+	  { echo "git tree not clean"; exit 1; }
+	$(MAKE) test
+	$(CLOJURE) -T:build deploy
+	git tag v$(VERSION)
+	@echo "Released $(VERSION) to Clojars. Now run: git push origin main v$(VERSION)"
+
 deploy-lein: $(PERL) $(LEIN)
 	$(LEIN) deploy clojars
