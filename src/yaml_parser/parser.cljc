@@ -42,7 +42,13 @@
     "ns_s_implicit_yaml_key" "c_s_implicit_json_key"
     "ns_flow_node" "c_flow_json_node" "ns_flow_yaml_node"
     "ns_flow_content" "c_flow_json_content" "ns_flow_yaml_content"
-    "ns_plain" "c_single_quoted" "c_double_quoted"})
+    "ns_plain" "c_single_quoted" "c_double_quoted"
+    ;; Separation/comment scans, re-parsed at the same position by
+    ;; sibling alternatives in block context. s_separate_lines rather
+    ;; than s_separate: the block/flow c variants all dispatch to
+    ;; [s_separate_lines n], so one entry serves differing c.
+    "s_separate_lines" "s_l_comments"
+    "s_l_flow_in_block"})
 
 ;; Parse state frame. :node is the frame's precomputed receiver
 ;; dispatch node (see build-cb-roots/frame-node); :full marks subtrees
