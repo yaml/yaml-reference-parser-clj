@@ -53,6 +53,7 @@
                 :state (volatile! [])
                 :memo (volatile! {})
                 :cb-roots (volatile! {})
+                :cb-chains (volatile! #{})
                 :trace-num (volatile! 0)
                 :trace-line (volatile! 0)
                 :trace-on (volatile! true)
@@ -109,23 +110,45 @@
             {}
             callback-rules)))
 
+;; Set of every proper chain prefix of a callback key, e.g.
+;; "got__c_flow_sequence__all__x5b" contributes "c_flow_sequence" and
+;; "c_flow_sequence__all". A frame whose chain has no callbacks of its
+;; own and is not on the way to one (not in this set) gets a nil node,
+;; so receive exits immediately for the whole dead subtree.
+(defn- callback-chain-prefixes [callbacks]
+  (reduce (fn [acc k]
+            (let [chain (str/replace k #"^(?:try|got|not)__" "")
+                  parts (str/split chain #"__")]
+              (loop [i 1 acc acc]
+                (if (< i (count parts))
+                  (recur (inc i) (conj acc (str/join "__" (take i parts))))
+                  acc))))
+          #{}
+          (keys callbacks)))
+
 (defn- frame-node [parser parent-node name]
   (if (str/includes? name "_")
     (get @(:cb-roots parser) name)
     (when parent-node
-      (or (get @(:kids parent-node) name)
+      (let [kids (:kids parent-node)
+            k (get @kids name ::miss)]
+        (if (identical? k ::miss)
           (let [mangled (if-let [[_ c] (re-matches #"chr\((.)\)" name)]
                           (str "x" (hex-char c))
                           (str/replace name #"\(.*" ""))
                 chain (str (:chain parent-node) "__" mangled)
                 callbacks (:callbacks @(:receiver parser))
-                node {:chain chain
-                      :cbs {:try (get callbacks (str "try__" chain))
-                            :got (get callbacks (str "got__" chain))
-                            :not (get callbacks (str "not__" chain))}
-                      :kids (volatile! {})}]
-            (vswap! (:kids parent-node) assoc name node)
-            node)))))
+                try-cb (get callbacks (str "try__" chain))
+                got-cb (get callbacks (str "got__" chain))
+                not-cb (get callbacks (str "not__" chain))
+                node (when (or try-cb got-cb not-cb
+                               (contains? @(:cb-chains parser) chain))
+                       {:chain chain
+                        :cbs {:try try-cb :got got-cb :not not-cb}
+                        :kids (volatile! {})})]
+            (vswap! kids assoc name node)
+            node)
+          k)))))
 
 (defn state-push
   ([parser name] (state-push parser name false))
@@ -806,6 +829,8 @@
     (vreset! (:state parser) [])
     (vreset! (:memo parser) {})
     (vreset! (:cb-roots parser) (build-cb-roots @(:receiver parser)))
+    (vreset! (:cb-chains parser)
+             (callback-chain-prefixes (:callbacks @(:receiver parser))))
 
     (when TRACE
       (vreset! (:trace-on parser) (not (trace-start parser))))
