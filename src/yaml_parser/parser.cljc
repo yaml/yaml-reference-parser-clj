@@ -1048,6 +1048,42 @@
        (die "Spaces found after indent in auto-detect (5LLU)"))
      (if (zero? m) 1 m))))
 
+;; Receiver dispatch tables, built once per distinct callbacks map
+;; rather than per parse. Everything in the entry (chain prefixes,
+;; root nodes, their :cbs handler fns) is a pure function of the
+;; receiver's :callbacks and :scalar-mode-rules, which are static defs
+;; shared by every receiver instance, so one entry serves all parses
+;; and the :kids chain-resolution caches inside the nodes stay warm
+;; across documents. Cache misses on the shared :kids volatiles are
+;; idempotent (equal chain -> equal node), so a lost update under
+;; concurrent parses only costs a recomputation.
+(def ^:private cb-dispatch-cache (volatile! {}))
+
+(defn- cb-dispatch [receiver]
+  (let [callbacks (:callbacks receiver)
+        scalar-rules (or (:scalar-mode-rules receiver) #{})
+        k [callbacks scalar-rules]]
+    (or (get @cb-dispatch-cache k)
+        (let [prefixes (callback-chain-prefixes callbacks)
+              all-roots (build-cb-roots receiver prefixes)
+              ;; Roots whose handlers only act during block scalar
+              ;; parsing start out pruned; the receiver swaps :cb-roots
+              ;; between base and all on :in-scalar transitions. Pruned
+              ;; rules run frameless.
+              base-roots (reduce (fn [acc r] (assoc acc r nil))
+                                 all-roots
+                                 scalar-rules)
+              entry {:prefixes prefixes
+                     :all-roots all-roots
+                     :base-roots base-roots}]
+          (vswap! cb-dispatch-cache assoc k entry)
+          entry))))
+
+;; The grammar namespace requires this one, so TOP is resolved lazily;
+;; once is enough.
+(def ^:private grammar-top
+  (delay @(requiring-resolve 'yaml-parser.grammar/TOP)))
+
 ;; Main parse function
 (defn parse [parser input]
   (let [input (if (or (empty? input) (str/ends-with? input "\n"))
@@ -1059,15 +1095,7 @@
     (vreset! (:state parser) [])
     (vreset! (:memo parser) {})
     (let [receiver @(:receiver parser)
-          prefixes (callback-chain-prefixes (:callbacks receiver))
-          all-roots (build-cb-roots receiver prefixes)
-          ;; Roots whose handlers only act during block scalar parsing
-          ;; (receiver.cljc scalar-mode-rules) start out pruned; the
-          ;; receiver swaps :cb-roots between base and all on
-          ;; :in-scalar transitions. Pruned rules run frameless.
-          base-roots (reduce (fn [acc r] (assoc acc r nil))
-                             all-roots
-                             (or (:scalar-mode-rules receiver) #{}))]
+          {:keys [prefixes all-roots base-roots]} (cb-dispatch receiver)]
       (vreset! (:cb-chains parser) prefixes)
       (vreset! (:cb-roots-all parser) all-roots)
       (vreset! (:cb-roots-base parser) base-roots)
@@ -1079,7 +1107,7 @@
     (when TRACE
       (vreset! (:trace-on parser) (not (trace-start parser))))
 
-    (let [grammar @(requiring-resolve 'yaml-parser.grammar/TOP)]
+    (let [grammar @grammar-top]
       (try
         (let [ok (call parser grammar)]
           (trace-flush parser)
