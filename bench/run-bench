@@ -9,12 +9,15 @@
 (require '[babashka.classpath :as cp]
          '[babashka.fs :as fs])
 
-(let [script (System/getProperty "babashka.file")
-      root (fs/parent (fs/parent script))]
-  (cp/add-classpath (str (fs/path root "src"))))
+(def bench-root
+  (let [script (System/getProperty "babashka.file")
+        root (fs/parent (fs/parent script))]
+    (cp/add-classpath (str (fs/path root "src")))
+    root))
 
 (ns bench
-  (:require [clojure.string :as str]
+  (:require [babashka.fs :as fs]
+            [clojure.string :as str]
             [yaml-parser.core :as yaml]))
 
 (defn flow-nested [depth]
@@ -54,13 +57,19 @@
        "anchor: &a value\n"
        "alias: *a\n"))
 
+(def clang-yml
+  ;; Real-world fixture: rapidyaml's clang.yml GitHub workflow (~48KB
+  ;; of block mappings, sequences and scalars)
+  (slurp (str (fs/path user/bench-root "bench" "fixtures" "clang.yml"))))
+
 (def cases
   [["flow-nested-8" (flow-nested 8) 1]
    ["flow-nested-10" (flow-nested 10) 1]
    ["flow-nested-12" (flow-nested 12) 1]
    ["block-deep" (block-deep 8 12) 1]
    ["scalars" (scalars-doc 40) 1]
-   ["mixed-small" mixed-small 50]])
+   ["mixed-small" mixed-small 50]
+   ["clang-yml" clang-yml 1]])
 
 (defn time-one [text iters]
   (let [t0 (System/nanoTime)]
