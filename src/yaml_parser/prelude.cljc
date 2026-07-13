@@ -28,6 +28,25 @@
     (map? value) "object"
     :else (throw (ex-info "Unknown type" {:value value}))))
 
+;; Call-count instrumentation flag (YAML_PARSER_COUNT=1). When set,
+;; the engine tallies per-rule call counts, call-path buckets and
+;; construction churn into call-stats (see parser.cljc and name*
+;; below); bench/run-bench reports them. Load-time resolved for the
+;; same reason as DEBUG below.
+(def COUNT (env "YAML_PARSER_COUNT"))
+
+;; Global tally map; keys are rule trace strings plus keyword buckets
+;; (:path/leaf, :path/frameless, :path/slow, :path/memo-hit, :name*,
+;; :auto-detect, :auto-detect-indent). Lives here so name* can count
+;; construction churn without a dependency cycle.
+(def call-stats (volatile! {}))
+
+(defn count! [k]
+  (vswap! call-stats update k (fnil inc 0)))
+
+(defn reset-call-stats! []
+  (vreset! call-stats {}))
+
 ;; Sentinel keyword used to retrieve the name from a name*-wrapped function.
 ;; Only needed for Gloat (JVM uses metadata instead).
 #?(:glj (def GET-NAME-SENTINEL :yamlstar/get-name))
@@ -47,6 +66,7 @@
 ;; On JVM: wraps func with metadata {:trace trace :name name}.
 ;; On Gloat: returns a multi-arity closure; called with GET-NAME-SENTINEL returns trace.
 (defn name* [name func trace]
+  (when COUNT (count! :name*))
   #?(:clj (with-meta func {:trace (or trace name) :name name})
      :glj (let [the-trace (or trace name)]
             (fn

@@ -332,6 +332,12 @@
                              (not (contains? frame-required-rules trace)))
                         :frameless
                         :else nil))]
+           (when COUNT
+             (count! trace)
+             (count! (case fast
+                       :leaf :path/leaf
+                       :frameless :path/frameless
+                       :path/slow)))
            (case fast
              ;; Leaf fast path: chr/rng/chars matchers make no nested
              ;; calls and no callback can fire here, so skip the frame,
@@ -411,6 +417,7 @@
                        (let [h (get @(:memo parser) memo-key)]
                          (when (and h (= (:entry-vols h) entry-vols))
                            h)))
+                 _ (when (and COUNT hit) (count! :path/memo-hit))
                  value
                  (if hit
                    (memo-replay! parser receiver top? hit)
@@ -967,6 +974,7 @@
   skip leading blank/comment lines (group 1, pre), then count the
   spaces at the start of the next line (group 2, m-raw)."
   [parser n]
+  (when COUNT (count! :auto-detect-indent))
   (let [pos (long @(:pos parser))
         ^String input @(:input parser)
         len (.length input)
@@ -1008,6 +1016,7 @@
   (group 2) and whether any content follows on it (group 3)."
   ([parser] (auto-detect parser (:m (state-curr parser))))
   ([parser n]
+   (when COUNT (count! :auto-detect))
    (let [^String input @(:input parser)
          pos (long @(:pos parser))
          len (.length input)

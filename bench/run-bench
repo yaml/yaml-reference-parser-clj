@@ -18,7 +18,8 @@
 (ns bench
   (:require [babashka.fs :as fs]
             [clojure.string :as str]
-            [yaml-parser.core :as yaml]))
+            [yaml-parser.core :as yaml]
+            [yaml-parser.prelude :as prelude]))
 
 (defn flow-nested [depth]
   (str (apply str (repeat depth "["))
@@ -86,13 +87,30 @@
                      name (count text) iters min* med))
     [name min* med]))
 
+(defn count-case [[name text _]]
+  (prelude/reset-call-stats!)
+  (yaml/parse text)
+  (let [stats @prelude/call-stats
+        paths (filter (comp keyword? key) stats)
+        rules (filter (comp string? key) stats)
+        total (reduce + 0 (map val rules))]
+    (println (format "%s: %d calls" name total))
+    (doseq [[k v] (sort-by key paths)]
+      (println (format "  %-24s %8d" k v)))
+    (doseq [[k v] (take 20 (sort-by val > rules))]
+      (println (format "  %-24s %8d" k v)))))
+
 (defn -main [& args]
   (let [want (set args)
         selected (if (empty? want)
                    cases
                    (filter #(want (first %)) cases))]
-    (println "case                     size          min             median")
-    (doseq [c selected]
-      (run-case c))))
+    (if prelude/COUNT
+      (doseq [c selected]
+        (count-case c))
+      (do
+        (println "case                     size          min             median")
+        (doseq [c selected]
+          (run-case c))))))
 
 (apply -main *command-line-args*)
