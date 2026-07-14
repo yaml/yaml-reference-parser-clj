@@ -727,6 +727,9 @@ defn gen-single-char(ctx rule):
 defn gen-group(ctx items kind):
   group-ctx =:
     ctx.assoc(:group true :rep-count atom(0))
+  # (max) is the unimplemented at-most-1024-chars placeholder whose
+  # matcher always answers true; drop the node instead of calling it.
+  items =: items.filter(\((map?(_) && kget(_ '(max)')).!))
   generated =: items.map(\(gen(group-ctx _)))
   gen-method-call: group-ctx kind generated*
 
@@ -790,10 +793,13 @@ defn gen-may(ctx rule):
 defn gen-chk(ctx rule kind):
   gen-method-call: ctx 'chk' "\"$kind\"" gen(ctx rule)
 
+# case dispatch keys are constants inside a constructed body, so the
+# lookup runs once at construction (p/case-at) and the target node
+# replaces the case node; no per-call dispatch remains.
 defn gen-case(ctx obj):
   var-name =: kget(obj 'var')
   obj =: kdissoc(obj 'var')
-  gen-method-call: ctx 'case*' gen-var-value(var-name) gen-hash(ctx obj)
+  gen-method-call: ctx 'case-at' gen-var-value(var-name) gen-hash(ctx obj)
 
 defn gen-flip(ctx obj):
   var-name =: kget(obj 'var')
@@ -839,11 +845,29 @@ defn gen-len(ctx expr):
 defn gen-exclude(ctx rule):
   gen-method-call: ctx 'exclude' gen(ctx rule)
 
+# Numeric add/sub operands are always constants inside a constructed
+# body (rule args or literals), so fold the node to plain arithmetic:
+# the tree slot holds a number and no call is made for it. Falls back
+# to the p/add / p/sub combinators for any operand shape that is not
+# a bare number/identifier or an already-folded expression.
+defn numeric-operand?(s):
+  re-matches(/^[a-z]$/ s) ||
+  re-matches(/^-?\d+$/ s) ||
+  s.starts?('(+ ') || s.starts?('(- ')
+
 defn gen-add(ctx [x y]):
-  gen-method-call: ctx 'add' gen(ctx x) gen(ctx y)
+  gx =: gen(ctx x)
+  gy =: gen(ctx y)
+  if numeric-operand?(gx) && numeric-operand?(gy):
+    then: "(+ $gx $gy)"
+    else: gen-method-call(ctx 'add' gx gy)
 
 defn gen-sub(ctx [x y]):
-  gen-method-call: ctx 'sub' gen(ctx x) gen(ctx y)
+  gx =: gen(ctx x)
+  gy =: gen(ctx y)
+  if numeric-operand?(gx) && numeric-operand?(gy):
+    then: "(- $gx $gy)"
+    else: gen-method-call(ctx 'sub' gx gy)
 
 defn gen-lt(ctx [x y]):
   gen-method-call: ctx 'lt' gen-arg(ctx x) gen-arg(ctx y)

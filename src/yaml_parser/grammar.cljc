@@ -1134,7 +1134,7 @@
         (when DEBUG (debug-rule "s_line_prefix", n, c))
         (or (get @cache [n c])
             (let [body
-  (p/case* parser
+  (p/case-at parser
      c,
     {
       "block-in" [s_block_line_prefix, n],
@@ -1384,7 +1384,7 @@
         (when DEBUG (debug-rule "s_separate", n, c))
         (or (get @cache [n c])
             (let [body
-  (p/case* parser
+  (p/case-at parser
      c,
     {
       "block-in" [s_separate_lines, n],
@@ -1954,7 +1954,7 @@
         (when DEBUG (debug-rule "nb_double_text", n, c))
         (or (get @cache [n c])
             (let [body
-  (p/case* parser
+  (p/case-at parser
      c,
     {
       "block-key" nb_double_one_line,
@@ -2186,7 +2186,7 @@
         (when DEBUG (debug-rule "nb_single_text", n, c))
         (or (get @cache [n c])
             (let [body
-  (p/case* parser
+  (p/case-at parser
      c,
     {
       "block-key" nb_single_one_line,
@@ -2321,7 +2321,7 @@
         (when DEBUG (debug-rule "ns_plain_safe", c))
         (or (get @cache [c])
             (let [body
-  (p/case* parser
+  (p/case-at parser
      c,
     {
       "block-key" ns_plain_safe_out,
@@ -2417,7 +2417,7 @@
         (when DEBUG (debug-rule "ns_plain", n, c))
         (or (get @cache [n c])
             (let [body
-  (p/case* parser
+  (p/case-at parser
      c,
     {
       "block-key" [ns_plain_one_line, c],
@@ -3008,10 +3008,7 @@
         (or (get @cache [c])
             (let [body
   (p/all parser
-     (p/max* parser
-       1024
-    ),
-    [ns_flow_yaml_node, nil, c],
+     [ns_flow_yaml_node, nil, c],
     (p/rep parser
        0,
       1,
@@ -3034,10 +3031,7 @@
         (or (get @cache [c])
             (let [body
   (p/all parser
-     (p/max* parser
-       1024
-    ),
-    [c_flow_json_node, nil, c],
+     [c_flow_json_node, nil, c],
     (p/rep parser
        0,
       1,
@@ -3320,7 +3314,7 @@
         (when DEBUG (debug-rule "b_chomped_last", t))
         (or (get @cache [t])
             (let [body
-  (p/case* parser
+  (p/case-at parser
      t,
     {
       "clip" (p/any parser b_as_line_feed, (p/end-of-stream parser) ),
@@ -3343,7 +3337,7 @@
         (when DEBUG (debug-rule "l_chomped_empty", n, t))
         (or (get @cache [n t])
             (let [body
-  (p/case* parser
+  (p/case-at parser
      t,
     {
       "clip" [l_strip_empty, n],
@@ -3760,14 +3754,8 @@
        1,
       nil,
       (p/all parser
-         [s_indent, (p/add parser
-           n,
-          m
-        )],
-        [c_l_block_seq_entry, (p/add parser
-           n,
-          m
-        )]
+         [s_indent, (+ n m)],
+        [c_l_block_seq_entry, (+ n m)]
       ))
   ))
       false)))
@@ -3813,20 +3801,8 @@
      (p/all parser
        [s_indent, m],
       (p/any parser
-         [ns_l_compact_sequence, (p/add parser
-           n,
-          (p/add parser
-             1,
-            m
-          )
-        )],
-        [ns_l_compact_mapping, (p/add parser
-           n,
-          (p/add parser
-             1,
-            m
-          )
-        )]
+         [ns_l_compact_sequence, (+ n (+ 1 m))],
+        [ns_l_compact_mapping, (+ n (+ 1 m))]
       )
     ),
     [s_l_block_node, n, c],
@@ -3879,14 +3855,8 @@
        1,
       nil,
       (p/all parser
-         [s_indent, (p/add parser
-           n,
-          m
-        )],
-        [ns_l_block_map_entry, (p/add parser
-           n,
-          m
-        )]
+         [s_indent, (+ n m)],
+        [ns_l_block_map_entry, (+ n m)]
       ))
   ))
       false)))
@@ -4100,14 +4070,8 @@
         (or (get @cache [n])
             (let [body
   (p/all parser
-     [s_separate, (p/add parser
-       n,
-      1
-    ), "flow-out"],
-    [ns_flow_node, (p/add parser
-       n,
-      1
-    ), "flow-out"],
+     [s_separate, (+ n 1), "flow-out"],
+    [ns_flow_node, (+ n 1), "flow-out"],
     s_l_comments
   )]
               (vswap! cache assoc [n] body)
@@ -4143,22 +4107,13 @@
         (or (get @cache [n c])
             (let [body
   (p/all parser
-     [s_separate, (p/add parser
-       n,
-      1
-    ), c],
+     [s_separate, (+ n 1), c],
     (p/rep parser
        0,
       1,
       (p/all parser
-         [c_ns_properties, (p/add parser
-           n,
-          1
-        ), c],
-        [s_separate, (p/add parser
-           n,
-          1
-        ), c]
+         [c_ns_properties, (+ n 1), c],
+        [s_separate, (+ n 1), c]
       )),
     (p/any parser
        [c_l_literal, n],
@@ -4187,16 +4142,10 @@
        0,
       1,
       (p/all parser
-         [s_separate, (p/add parser
-           n,
-          1
-        ), c],
+         [s_separate, (+ n 1), c],
         (p/any parser
            (p/all parser
-             [c_ns_properties, (p/add parser
-               n,
-              1
-            ), c],
+             [c_ns_properties, (+ n 1), c],
             s_l_comments
           ),
           (p/all parser
@@ -4230,7 +4179,7 @@
      c,
     {
       "block-in" n,
-      "block-out" (p/sub parser n, 1),
+      "block-out" (- n 1),
     }
   ))
     nil))

@@ -1308,6 +1308,16 @@
           (call p rule)))
       trace)))
 
+;; Construction-time case*: inside a cached rule body the dispatch key
+;; is a constant, so the lookup happens once when the tree is built
+;; and the target node replaces the case node entirely (same FAIL on
+;; a missing key, just earlier).
+(defn case-at [parser var map]
+  (let [rule (get map var)]
+    (when-not rule
+      (FAIL (str "Can't find '" var "' in:") map))
+    rule))
+
 (defn flip [parser var map]
   (let [value (get map var)]
     (when-not value
