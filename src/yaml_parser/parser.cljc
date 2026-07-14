@@ -54,13 +54,9 @@
     "ns_flow_node" "c_flow_json_node" "ns_flow_yaml_node"
     "ns_flow_content" "c_flow_json_content" "ns_flow_yaml_content"
     "ns_plain" "c_single_quoted" "c_double_quoted"
-    ;; Separation scans, re-parsed at the same position by sibling
-    ;; alternatives in block context. s_separate_lines rather than
-    ;; s_separate: the block/flow c variants all dispatch to
-    ;; [s_separate_lines n], so one entry serves differing c.
-    ;; (s_l_comments left out: fused into p/comments-scan, one leaf
-    ;; call, cheaper than the memo gate.)
-    "s_separate_lines"
+    ;; (s_l_comments and s_separate_lines left out: fused into
+    ;; p/comments-scan and p/sep-lines, one leaf call each, cheaper
+    ;; than the memo gate.)
     "s_l_flow_in_block"})
 
 ;; Parse state frame. :node is the frame's precomputed receiver
@@ -877,15 +873,12 @@
 ;; backtrack. No rule in this subtree has receiver callbacks; the
 ;; whites cross the s-white FUSE-BARRIER on the same scalar-mode
 ;; argument as the other fused scanners.
-(defn comments-scan [parser nb-ranges]
-  (let [nn (count nb-ranges)]
-    (leaf*
-     (name* "comments+"
-       (fn comments-scan-fn [p]
-         (let [input @(:input p)
-               end (long @(:end p))
-               doc (:doc (state-curr p))
-               line-start? (fn [pos]
+;; Core of the s-l-comments scan, shared by comments-scan and
+;; sep-lines: returns the position after the comment block, or nil
+;; when s-l-comments would fail at pos.
+(defn- comments* [input end doc nb-ranges nn pos]
+  (let [end (long end)
+        line-start? (fn [pos]
                              (or (zero? pos)
                                  (= (nth input (dec pos)) \newline)))
                marker? (fn [pos]
@@ -937,29 +930,88 @@
                              (+ pos 2)
                              (inc pos))
                            :else nil))
-               ;; l-comment: separation required, then text?, then
-               ;; break/EOF; all-or-nothing
-               comment-line (fn [pos]
-                              (when-let [s (sep-end pos)]
-                                (brk-end (text-end s))))
-               pos0 (long @(:pos p))
-               ;; s-b-comment: the (separation text?) group is
-               ;; optional but commits once the separation matches
-               ;; (rep(0,1) takes the iteration and never retries
-               ;; with zero), so a bare break at pos0 is only tried
-               ;; when the separation itself failed.
-               p1 (or (if-let [s (sep-end pos0)]
-                        (brk-end (text-end s))
-                        (brk-end pos0))
-                      (when (line-start? pos0) pos0))]
-           (when p1
-             (loop [pos (long p1)]
-               (let [r (comment-line pos)]
-                 (if (and r (> (long r) pos))
-                   (recur (long r))
-                   (do (vreset! (:pos p) pos)
-                       true)))))))
+        ;; l-comment: separation required, then text?, then
+        ;; break/EOF; all-or-nothing
+        comment-line (fn [pos]
+                       (when-let [s (sep-end pos)]
+                         (brk-end (text-end s))))
+        pos0 (long pos)
+        ;; s-b-comment: the (separation text?) group is
+        ;; optional but commits once the separation matches
+        ;; (rep(0,1) takes the iteration and never retries
+        ;; with zero), so a bare break at pos0 is only tried
+        ;; when the separation itself failed.
+        p1 (or (if-let [s (sep-end pos0)]
+                 (brk-end (text-end s))
+                 (brk-end pos0))
+               (when (line-start? pos0) pos0))]
+    (when p1
+      (loop [pos (long p1)]
+        (let [r (comment-line pos)]
+          (if (and r (> (long r) pos))
+            (recur (long r))
+            pos))))))
+
+(defn comments-scan [parser nb-ranges]
+  (let [nn (count nb-ranges)]
+    (leaf*
+     (name* "comments+"
+       (fn comments-scan-fn [p]
+         (when-let [r (comments* @(:input p) @(:end p)
+                                 (:doc (state-curr p))
+                                 nb-ranges nn @(:pos p))]
+           (vreset! (:pos p) r)
+           true))
        "comments+"))))
+
+;; Fused s-separate-lines(n):
+;;   ( s-l-comments s-flow-line-prefix(n) ) | s-separate-in-line
+;; where s-flow-line-prefix(n) = s-indent(n) s-separate-in-line?.
+;; After a successful comment block the position is at a line start;
+;; the prefix needs a run of at least n spaces there (s-indent
+;; consumes exactly n) followed by any further whites (the optional
+;; in-line separation; with n = 0 its zero-width start-of-line branch
+;; makes it succeed regardless). When either part fails, the plain
+;; in-line separation is retried from the original position, exactly
+;; like the ordered choice. A doc-end-marker line yields zero
+;; available spaces naturally (markers start with '-' or '.'), and
+;; whites can never be cut short by a marker, so no marker checks are
+;; needed beyond the ones inside comments*.
+(defn sep-lines [parser n nb-ranges]
+  (let [nn (count nb-ranges)
+        n (long n)]
+    (leaf*
+     (name* "sep-lines"
+       (fn sep-lines-fn [p]
+         (let [input @(:input p)
+               end (long @(:end p))
+               pos0 (long @(:pos p))
+               white-run (fn [pos]
+                           (loop [i (long pos)]
+                             (if (and (< i end)
+                                      (let [ch (nth input i)]
+                                        (or (= ch \space) (= ch \tab))))
+                               (recur (inc i))
+                               i)))]
+           (or (when-let [c (comments* input end
+                                       (:doc (state-curr p))
+                                       nb-ranges nn pos0)]
+                 (let [c (long c)
+                       sp (loop [i c]
+                            (if (and (< i (min end (+ c n)))
+                                     (= (nth input i) \space))
+                              (recur (inc i))
+                              (- i c)))]
+                   (when (= sp n)
+                     (vreset! (:pos p) (white-run (+ c n)))
+                     true)))
+               (let [w (white-run pos0)]
+                 (cond
+                   (> w pos0) (do (vreset! (:pos p) w) true)
+                   (or (zero? pos0)
+                       (= (nth input (dec pos0)) \newline)) true
+                   :else false)))))
+       "sep-lines"))))
 
 ;; Fused b-break matcher: (b-carriage-return b-line-feed) |
 ;; b-carriage-return | b-line-feed as a single leaf. Equivalent to the

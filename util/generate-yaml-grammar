@@ -122,7 +122,8 @@ FUSE-BARRIER =: \{'ns-char' 's-white'}
 GATE-FIRST =:
   +{'c-ns-tag-property' '[0x21 0x21]'
     'c-ns-anchor-property' '[0x26 0x26]'
-    'c-ns-alias-node' '[0x2A 0x2A]'}
+    'c-ns-alias-node' '[0x2A 0x2A]'
+    'c-ns-properties' '[0x21 0x21 0x26 0x26]'}
 
 RULE-REF-RE =: /^(?:b|c|e|l|nb|ns|s)(?:[-+][a-z0-9]+)+$/
 
@@ -324,6 +325,20 @@ defn gen-rule(spec nums comments classes name):
                  (when DEBUG (debug-rule "$rule-name-str"))
                  (body parser))
                nil))))
+    name == 's-separate-lines':
+      # Fused separation-across-lines scanner (see p/sep-lines),
+      # cached per n like the other args rules.
+      str: |+
+        ${comment}(def $rule-name-str
+          (let [cache (volatile! {})]
+            (name* "$rule-name-str"
+              (fn ${rule-name-str}-fn [parser n]
+                (when DEBUG (debug-rule "$rule-name-str", n))
+                (or (get @cache [n])
+                    (let [body (p/sep-lines parser n [$(flat-ranges(classes.get('nb-char')))])]
+                      (vswap! cache assoc [n] body)
+                      body)))
+              nil)))
     ranges:
       gen-class-rule:
         comment
@@ -359,6 +374,23 @@ defn gen-rule(spec nums comments classes name):
               (fn ${rule-name-str}-fn [parser]
                 (when DEBUG (debug-rule "$rule-name-str"))
                 @body)
+              nil)))
+    gate && cacheable:
+      # Gated variant of the args branch below: the lookahead
+      # predicate runs per invocation, before the cached tree.
+      str: |+
+        ${comment}(def $rule-name-str
+          (let [cache (volatile! {})]
+            (name* "$rule-name-str"
+              (fn ${rule-name-str}-fn $rule-args
+                (when DEBUG (debug-rule "$rule-name-str"$debug-args))
+                (if (p/ahead? parser $gate)
+                  (or (get @cache [$(args:joins)])
+                      (let [body
+        $rule-body]
+                        (vswap! cache assoc [$(args:joins)] body)
+                        body))
+                  false))
               nil)))
     cacheable:
       # Runtime args are embedded in the tree, so cache one tree per

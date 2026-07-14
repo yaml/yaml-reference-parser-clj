@@ -1409,14 +1409,7 @@
       (fn s_separate_lines-fn [parser n]
         (when DEBUG (debug-rule "s_separate_lines", n))
         (or (get @cache [n])
-            (let [body
-  (p/any parser
-     (p/all parser
-       s_l_comments,
-      [s_flow_line_prefix, n]
-    ),
-    s_separate_in_line
-  )]
+            (let [body (p/sep-lines parser n [0x9 0x9 0x20 0x7E 0x85 0x85 0xA0 0xD7FF 0xE000 0xFEFE 0xFF00 0xFFFD 0x10000 0x10FFFF])]
               (vswap! cache assoc [n] body)
               body)))
       nil)))
@@ -1700,8 +1693,9 @@
     (name* "c_ns_properties"
       (fn c_ns_properties-fn [parser n c]
         (when DEBUG (debug-rule "c_ns_properties", n, c))
-        (or (get @cache [n c])
-            (let [body
+        (if (p/ahead? parser [0x21 0x21 0x26 0x26])
+          (or (get @cache [n c])
+              (let [body
   (p/any parser
      (p/all parser
        c_ns_tag_property,
@@ -1724,8 +1718,9 @@
         ))
     )
   )]
-              (vswap! cache assoc [n c] body)
-              body)))
+                (vswap! cache assoc [n c] body)
+                body))
+          false))
       nil)))
 ;; [097]
 ;; c-ns-tag-property ::=
