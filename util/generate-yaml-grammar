@@ -109,6 +109,21 @@ defn gen-grammar-head(top-name ns-prefix): |
 # callback rules in src/yaml_parser/parser.cljc (callback-rules).
 FUSE-BARRIER =: \{'ns-char' 's-white'}
 
+# Lookahead gates. Rules whose every alternative starts with a known
+# small character set (FIRST set, hand-verified against the spec
+# productions: every c-ns-tag-property alternative starts with '!',
+# c-ns-anchor-property with '&', c-ns-alias-node with '*'). Their
+# generated bodies check the next codepoint via p/ahead? and fail
+# without executing the combinator subtree when it cannot match.
+# Sound because these rules and everything inside their subtrees have
+# only got__ receiver callbacks, which fire on success only, and the
+# gate never blocks a codepoint that could start a match. Values are
+# flat [lo hi ...] codepoint ranges as read by p/ahead?.
+GATE-FIRST =:
+  +{'c-ns-tag-property' '[0x21 0x21]'
+    'c-ns-anchor-property' '[0x26 0x26]'
+    'c-ns-alias-node' '[0x2A 0x2A]'}
+
 RULE-REF-RE =: /^(?:b|c|e|l|nb|ns|s)(?:[-+][a-z0-9]+)+$/
 
 defn build-class-table(spec):
@@ -241,13 +256,42 @@ defn gen-rule(spec nums comments classes name):
   has-flip =: has-text?(rule-body 'p/flip')
   cacheable =: (setm == '') && has-flip.!
   ranges =: classes && classes.get(name)
+  gate =: GATE-FIRST.get(name)
   cond:
+    name == 'b-break':
+      # Fused in the engine: CRLF | CR | LF as one leaf matcher (see
+      # p/brk), replacing the 3-alternative combinator tree that
+      # tried CR twice before matching the common LF.
+      str: |+
+        ${comment}(def $rule-name-str
+          (let [body (p/brk nil)]
+            (p/leaf*
+             (name* "$rule-name-str"
+               (fn ${rule-name-str}-fn [parser]
+                 (when DEBUG (debug-rule "$rule-name-str"))
+                 (body parser))
+               nil))))
     ranges:
       gen-class-rule:
         comment
         rule-name-str
         ranges
         contains?(FUSE-BARRIER name).!
+    gate && cacheable && (args.# == 0):
+      # Gated variant of the delay branch below: the lookahead
+      # predicate runs per invocation, before the cached tree.
+      str: |+
+        ${comment}(def $rule-name-str
+          (let [body (delay
+                       (let [parser nil]
+          $rule-body))]
+            (name* "$rule-name-str"
+              (fn ${rule-name-str}-fn [parser]
+                (when DEBUG (debug-rule "$rule-name-str"))
+                (if (p/ahead? parser $gate)
+                  @body
+                  false))
+              nil)))
     cacheable && (args.# == 0):
       # No runtime args and a pure-constructor body: build the
       # combinator tree once on first use (delay defers evaluation

@@ -546,21 +546,13 @@
 ;;   | b-carriage-return
 ;;   | b-line-feed
 (def b_break
-  (let [body (delay
-               (let [parser nil]
-    (p/any parser
-     (p/all parser
-       b_carriage_return,
-      b_line_feed
-    ),
-    b_carriage_return,
-    b_line_feed
-  )))]
-    (name* "b_break"
-      (fn b_break-fn [parser]
-        (when DEBUG (debug-rule "b_break"))
-        @body)
-      nil)))
+  (let [body (p/brk nil)]
+    (p/leaf*
+     (name* "b_break"
+       (fn b_break-fn [parser]
+         (when DEBUG (debug-rule "b_break"))
+         (body parser))
+       nil))))
 ;; [029]
 ;; b-as-line-feed ::=
 ;;   b-break
@@ -1798,7 +1790,9 @@
     (name* "c_ns_tag_property"
       (fn c_ns_tag_property-fn [parser]
         (when DEBUG (debug-rule "c_ns_tag_property"))
-        @body)
+        (if (p/ahead? parser [0x21 0x21])
+          @body
+          false))
       nil)))
 ;; [098]
 ;; c-verbatim-tag ::=
@@ -1872,7 +1866,9 @@
     (name* "c_ns_anchor_property"
       (fn c_ns_anchor_property-fn [parser]
         (when DEBUG (debug-rule "c_ns_anchor_property"))
-        @body)
+        (if (p/ahead? parser [0x26 0x26])
+          @body
+          false))
       nil)))
 ;; [102]
 ;; ns-anchor-char ::=
@@ -1916,7 +1912,9 @@
     (name* "c_ns_alias_node"
       (fn c_ns_alias_node-fn [parser]
         (when DEBUG (debug-rule "c_ns_alias_node"))
-        @body)
+        (if (p/ahead? parser [0x2A 0x2A])
+          @body
+          false))
       nil)))
 ;; [105]
 ;; e-scalar ::=

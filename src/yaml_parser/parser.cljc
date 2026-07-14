@@ -26,6 +26,16 @@
   #?(:clj (and (not TRACE) (nil? (env "YAML_PARSER_NO_FAST")))
      :glj false))
 
+;; Lookahead gates: generated rules whose every alternative starts
+;; with a known small character set (see GATE-FIRST in
+;; util/generate-yaml-grammar) check the next codepoint via ahead?
+;; and fail without executing their combinator subtree when it cannot
+;; match. Disabled under TRACE (pruned subtrees would change trace
+;; output) and via YAML_PARSER_NO_GATE=1 (A/B escape hatch).
+(def GATE
+  #?(:clj (and (not TRACE) (nil? (env "YAML_PARSER_NO_GATE")))
+     :glj false))
+
 ;; Rules safe for memoization: flow-context productions whose results
 ;; depend only on (pos, args, doc flag, receiver-cache depth) plus the
 ;; receiver volatiles snapshotted in memo-vol-keys. Their subtrees never
@@ -513,6 +523,26 @@
                          (or (empty? after)
                              (re-find #"^\s" after)))))))))
 
+;; Lookahead-gate predicate: true when the next codepoint falls in
+;; ranges (flat [lo0 hi0 lo1 hi1 ...] like chars) and the-end does not
+;; hold. With GATE off it always answers true, so gated rules behave
+;; exactly as ungated ones. Not a combinator: called directly by
+;; generated rule bodies, consumes nothing, fires no callbacks.
+(defn ahead? [parser ranges]
+  (if GATE
+    (when-not (the-end parser)
+      (let [cp #?(:clj (Character/codePointAt
+                        ^String @(:input parser) (int @(:pos parser)))
+                  :glj (int (nth @(:input parser) @(:pos parser))))
+            n (count ranges)]
+        (loop [i 0]
+          (when (< i n)
+            (if (< cp (nth ranges i))
+              nil
+              (or (<= cp (nth ranges (inc i)))
+                  (recur (+ i 2))))))))
+    true))
+
 ;; Grammar-callable versions (return functions). The wrappers carry no
 ;; per-call state, so each is built once and shared.
 (def ^:private start-of-line-rule
@@ -549,6 +579,36 @@
 (defn leaf* [f]
   #?(:clj (vary-meta f assoc :leaf true)
      :glj f))
+
+;; Fused b-break matcher: (b-carriage-return b-line-feed) |
+;; b-carriage-return | b-line-feed as a single leaf. Equivalent to the
+;; spec's combinator tree including its per-position the-end guards:
+;; after CR is consumed, LF is consumed only if the-end does not hold
+;; at the intermediate position (where the original all(cr,lf) would
+;; have had its lf fail and backtracked to the bare cr alternative).
+;; Leaf-safe: no nested calls, no callback chain passes through
+;; b_break (it is an anchor name outside callback-rules, so its frame
+;; resets chains to dead).
+(defn brk [parser]
+  (leaf*
+   (name* "brk"
+     (fn brk-fn [p]
+       (when-not (the-end p)
+         (let [c (nth @(:input p) @(:pos p))]
+           (cond
+             (= c \return)
+             (do (vswap! (:pos p) inc)
+                 (when (and (not (the-end p))
+                            (= (nth @(:input p) @(:pos p)) \newline))
+                   (vswap! (:pos p) inc))
+                 true)
+
+             (= c \newline)
+             (do (vswap! (:pos p) inc)
+                 true)
+
+             :else nil))))
+     "brk")))
 
 (def ^:private chr-cache (volatile! {}))
 
