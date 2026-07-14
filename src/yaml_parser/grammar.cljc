@@ -4141,8 +4141,9 @@
     (name* "s_l_block_collection"
       (fn s_l_block_collection-fn [parser n c]
         (when DEBUG (debug-rule "s_l_block_collection", n, c))
-        (or (get @cache [n c])
-            (let [body
+        (if (p/ahead-inline? parser [0xA 0xA 0xD 0xD 0x21 0x21 0x23 0x23 0x26 0x26])
+          (or (get @cache [n c])
+              (let [body
   (p/all parser
      (p/rep parser
        0,
@@ -4170,8 +4171,9 @@
       [l_block_mapping, n]
     )
   )]
-              (vswap! cache assoc [n c] body)
-              body)))
+                (vswap! cache assoc [n c] body)
+                body))
+          false))
       nil)))
 ;; [201]
 ;; seq-spaces(n,c) ::=

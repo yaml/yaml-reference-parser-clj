@@ -136,6 +136,13 @@ GATE-FIRST =:
 GATE-AFTER-SEP =:
   +{'s-l+block-scalar' '[0x21 0x21 0x26 0x26 0x3E 0x3E 0x7C 0x7C]'}
 
+# Rules gated with p/ahead-inline? (line-start escape, then skip
+# in-line whites and check): s-l+block-collection needs the current
+# line to end (break x0A/x0D or comment x23) or an in-line property
+# (x21 x26); see the engine comment for the case analysis.
+GATE-INLINE =:
+  +{'s-l+block-collection' '[0xA 0xA 0xD 0xD 0x21 0x21 0x23 0x23 0x26 0x26]'}
+
 RULE-REF-RE =: /^(?:b|c|e|l|nb|ns|s)(?:[-+][a-z0-9]+)+$/
 
 defn build-class-table(spec):
@@ -270,10 +277,12 @@ defn gen-rule(spec nums comments classes name):
   ranges =: classes && classes.get(name)
   gate-first =: GATE-FIRST.get(name)
   gate-sep =: GATE-AFTER-SEP.get(name)
+  gate-inline =: GATE-INLINE.get(name)
   gate =:
     cond:
       gate-first: "(p/ahead? parser $gate-first)"
       gate-sep: "(p/ahead-skip? parser $gate-sep)"
+      gate-inline: "(p/ahead-inline? parser $gate-inline)"
       else: nil
   cond:
     name == 'b-break':

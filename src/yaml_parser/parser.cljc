@@ -592,6 +592,36 @@
                           ranges n))))))
     true))
 
+;; In-line lookahead gate: true at a line start, or when the next
+;; codepoint after any spaces/tabs on the current line falls in
+;; ranges. Used to gate s-l+block-collection, whose every successful
+;; path requires one of: a zero-width separation at a line start, a
+;; line break or comment ending the current line (both the separation
+;; and s-l-comments paths), or an in-line '!' / '&' node property. A
+;; plain in-line value character fails all of them, so the gate
+;; rejecting it never blocks a would-succeed parse. False at end of
+;; input (the gated rule needs real collection content). With GATE
+;; off it always answers true.
+(defn ahead-inline? [parser ranges]
+  (if GATE
+    (let [input @(:input parser)
+          end (long @(:end parser))
+          pos (long @(:pos parser))
+          n (count ranges)]
+      (or (zero? pos)
+          (= (nth input (dec pos)) \newline)
+          (loop [i pos]
+            (if (>= i end)
+              false
+              (let [ch (nth input i)]
+                (if (or (= ch \space) (= ch \tab))
+                  (recur (inc i))
+                  (in-ranges? #?(:clj (Character/codePointAt
+                                       ^String input (int i))
+                                 :glj (int (nth input i)))
+                              ranges n)))))))
+    true))
+
 ;; Grammar-callable versions (return functions). The wrappers carry no
 ;; per-call state, so each is built once and shared.
 (def ^:private start-of-line-rule
