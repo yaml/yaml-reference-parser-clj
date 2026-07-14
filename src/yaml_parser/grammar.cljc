@@ -1145,11 +1145,7 @@
   (let [body (delay
                (let [parser nil]
     (p/any parser
-     (p/rep parser
-       1,
-      nil,
-      s_white
-    ),
+     (p/chars-rep parser 1, nil, [0x9 0x9 0x20 0x20]),
     (p/start-of-line parser)
   )))]
     (name* "s_separate_in_line"
@@ -3545,11 +3541,8 @@
       [l_empty, n, "block-in"]
     ),
     [s_indent, n],
-    (p/rep2 parser
-       1,
-      nil,
-      nb_char
-    )
+    (p/chars-rep parser 1, nil,
+           [0x9 0x9 0x20 0x7E 0x85 0x85 0xA0 0xD7FF 0xE000 0xFEFE 0xFF00 0xFFFD 0x10000 0x10FFFF] "rep2")
   )]
               (vswap! cache assoc [n] body)
               body)))
@@ -3643,11 +3636,8 @@
   (p/all parser
      [s_indent, n],
     ns_char,
-    (p/rep parser
-       0,
-      nil,
-      nb_char
-    )
+    (p/chars-rep parser 0, nil,
+           [0x9 0x9 0x20 0x7E 0x85 0x85 0xA0 0xD7FF 0xE000 0xFEFE 0xFF00 0xFFFD 0x10000 0x10FFFF] "rep")
   )]
               (vswap! cache assoc [n] body)
               body)))
@@ -3690,11 +3680,8 @@
   (p/all parser
      [s_indent, n],
     s_white,
-    (p/rep parser
-       0,
-      nil,
-      nb_char
-    )
+    (p/chars-rep parser 0, nil,
+           [0x9 0x9 0x20 0x7E 0x85 0x85 0xA0 0xD7FF 0xE000 0xFEFE 0xFF00 0xFFFD 0x10000 0x10FFFF] "rep")
   )]
               (vswap! cache assoc [n] body)
               body)))

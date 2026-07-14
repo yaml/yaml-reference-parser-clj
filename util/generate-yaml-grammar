@@ -603,13 +603,41 @@ defn gen-group(ctx items kind):
 # final zero-width bookkeeping.
 REP-FUSE-EXCLUDE =: \{'s-indent-lt' 's-indent-le'}
 
+# Live-chain rules whose class reps may fuse anyway, with the rep's
+# own frame name ("rep"/"rep2") passed to chars-rep so the chain
+# callback anchored on that frame (got__l_nb_literal_text__all__rep2,
+# got__s_nb_folded_text__all__rep, got__s_nb_spaced_text__all__rep)
+# still resolves and fires with the same matched text. Sound because
+# no callback chain extends below these rep frames (nb-char has no
+# callbacks anywhere).
+LIVE-CHAIN-REP-FUSE =:
+  \{'l-nb-literal-text' 's-nb-folded-text' 's-nb-spaced-text'}
+
+# Rules whose class reps may fuse THROUGH the s-white/ns-char barrier.
+# The barrier protects the scalar-mode got__s_white/got__ns_char
+# handlers (folded-text :first capture); s-separate-in-line never runs
+# between a folded/spaced line's :first capture and its text-rep
+# callback (those productions are s-indent ns-char/s-white nb-char*,
+# with no separation inside), so its whites are never observed.
+REP-FUSE-BARRIER-OK =: \{'s-separate-in-line'}
+
 defn gen-rep(ctx rule min max):
   rep-num =: swap(ctx.rep-count inc)
+  allow-barrier =: contains?(REP-FUSE-BARRIER-OK ctx.rule-name)
+  live-fuse =: contains?(LIVE-CHAIN-REP-FUSE ctx.rule-name)
   ranges =:
-    when rep-fusable?(ctx):
-      class-of(ctx.classes rule false)
-  if ranges:
-    then: +
+    when rep-fusable?(ctx) || live-fuse:
+      class-of(ctx.classes rule allow-barrier)
+  cond:
+    ranges && live-fuse:
+      rep-name =:
+        if rep-num > 1:
+          then: 'rep2'
+          else: 'rep'
+      str:
+        =>: "(p/chars-rep parser $(gen-limit(min)), $(gen-limit(max)),"
+        =>: "\n       [$(flat-ranges(ranges))] \"$rep-name\")"
+    ranges: +
       "(p/chars-rep parser $(gen-limit(min)), $(gen-limit(max)),
        [$(flat-ranges(ranges))])"
     else: gen-rep-call(ctx rule min max rep-num)

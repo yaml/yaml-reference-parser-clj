@@ -747,10 +747,18 @@
 ;; when at least min matched, else resetting pos. Equivalent to
 ;; (rep min max <class matcher>) including the per-position the-end
 ;; guard, in a single call.
-(defn chars-rep [parser min max ranges]
-  (let [n (count ranges)]
+(defn chars-rep
+  ;; The 5-arity trace override lets a fused rep keep the frame name
+  ;; the plain combinator would have had ("rep"/"rep2"), so receiver
+  ;; chain callbacks anchored on that frame (e.g.
+  ;; got__l_nb_literal_text__all__rep2) still resolve and fire with
+  ;; the same matched text. A live node forces the slow path, so the
+  ;; leaf mark is inert exactly when the callback needs the frame.
+  ([parser min max ranges] (chars-rep parser min max ranges "chars+"))
+  ([parser min max ranges trace]
+   (let [n (count ranges)]
     (leaf*
-     (name* "chars+"
+     (name* trace
        (fn chars-rep-fn [p]
          (let [input @(:input p)
                end (long @(:end p))
@@ -784,7 +792,7 @@
                        (or (>= cnt min)
                            (do (vreset! (:pos p) pos0) false)))
                    (recur (+ pos w) (inc cnt))))))))
-       "chars+"))))
+       trace)))))
 
 ;; Fused character-class matcher. ranges is a flat, sorted,
 ;; non-overlapping vector [lo0 hi0 lo1 hi1 ...] of inclusive codepoint
