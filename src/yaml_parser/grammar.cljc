@@ -3770,8 +3770,9 @@
     (name* "c_l_block_seq_entry"
       (fn c_l_block_seq_entry-fn [parser n]
         (when DEBUG (debug-rule "c_l_block_seq_entry", n))
-        (or (get @cache [n])
-            (let [body
+        (if (p/ahead? parser [0x2D 0x2D])
+          (or (get @cache [n])
+              (let [body
   (p/all parser
      (p/chr parser
        "-"
@@ -3782,8 +3783,9 @@
     ),
     [s_l_block_indented, n, "block-in"]
   )]
-              (vswap! cache assoc [n] body)
-              body)))
+                (vswap! cache assoc [n] body)
+                body))
+          false))
       nil)))
 ;; [185]
 ;; s-l+block-indented(n,c) ::=
@@ -3890,8 +3892,9 @@
     (name* "c_l_block_map_explicit_entry"
       (fn c_l_block_map_explicit_entry-fn [parser n]
         (when DEBUG (debug-rule "c_l_block_map_explicit_entry", n))
-        (or (get @cache [n])
-            (let [body
+        (if (p/ahead? parser [0x3F 0x3F])
+          (or (get @cache [n])
+              (let [body
   (p/all parser
      [c_l_block_map_explicit_key, n],
     (p/any parser
@@ -3899,8 +3902,9 @@
       e_node
     )
   )]
-              (vswap! cache assoc [n] body)
-              body)))
+                (vswap! cache assoc [n] body)
+                body))
+          false))
       nil)))
 ;; [190]
 ;; c-l-block-map-explicit-key(n) ::=
@@ -4104,8 +4108,9 @@
     (name* "s_l_block_scalar"
       (fn s_l_block_scalar-fn [parser n c]
         (when DEBUG (debug-rule "s_l_block_scalar", n, c))
-        (or (get @cache [n c])
-            (let [body
+        (if (p/ahead-skip? parser [0x21 0x21 0x26 0x26 0x3E 0x3E 0x7C 0x7C])
+          (or (get @cache [n c])
+              (let [body
   (p/all parser
      [s_separate, (+ n 1), c],
     (p/rep parser
@@ -4120,8 +4125,9 @@
       [c_l_folded, n]
     )
   )]
-              (vswap! cache assoc [n c] body)
-              body)))
+                (vswap! cache assoc [n c] body)
+                body))
+          false))
       nil)))
 ;; [200]
 ;; s-l+block-collection(n,c) ::=

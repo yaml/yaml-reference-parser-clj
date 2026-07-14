@@ -521,6 +521,17 @@
                          (or (empty? after)
                              (re-find #"^\s" after)))))))))
 
+;; Codepoint membership in a flat [lo0 hi0 lo1 hi1 ...] sorted range
+;; vector, shared by the gate predicates and fused scanners below.
+(defn- in-ranges? [cp ranges n]
+  (loop [i 0]
+    (if (< i n)
+      (if (< cp (nth ranges i))
+        false
+        (or (<= cp (nth ranges (inc i)))
+            (recur (+ i 2))))
+      false)))
+
 ;; Lookahead-gate predicate: true when the next codepoint falls in
 ;; ranges (flat [lo0 hi0 lo1 hi1 ...] like chars) and the-end does not
 ;; hold. With GATE off it always answers true, so gated rules behave
@@ -539,6 +550,46 @@
               nil
               (or (<= cp (nth ranges (inc i)))
                   (recur (+ i 2))))))))
+    true))
+
+;; Skip-ahead lookahead gate: true when the first content codepoint
+;; after any run of blanks (space/tab/CR/LF) and comment lines falls
+;; in ranges. Used to gate rules whose FIRST set sits behind a
+;; separation (s-l+block-scalar: after s-separate and optional
+;; properties the next char must be one of | > ! &). The skip is a
+;; permissive superset of every separation the subtree could perform,
+;; and both land on the same first non-blank non-comment character,
+;; so the gate never rejects an input the subtree could match; where
+;; the skip is sloppier than the real separation (indent limits, doc
+;; markers, badly placed '#'), it errs toward true and the subtree
+;; fails normally. False at end of input (the gated rules all need a
+;; real character). With GATE off it always answers true.
+(defn ahead-skip? [parser ranges]
+  (if GATE
+    (let [input @(:input parser)
+          end (long @(:end parser))
+          n (count ranges)]
+      (loop [i (long @(:pos parser))]
+        (if (>= i end)
+          false
+          (let [ch (nth input i)]
+            (cond
+              (or (= ch \space) (= ch \tab)
+                  (= ch \newline) (= ch \return))
+              (recur (inc i))
+
+              (= ch \#)
+              (recur (long (loop [j (inc i)]
+                             (if (and (< j end)
+                                      (not= (nth input j) \newline))
+                               (recur (inc j))
+                               j))))
+
+              :else
+              (in-ranges? #?(:clj (Character/codePointAt
+                                   ^String input (int i))
+                             :glj (int (nth input i)))
+                          ranges n))))))
     true))
 
 ;; Grammar-callable versions (return functions). The wrappers carry no
@@ -577,17 +628,6 @@
 (defn leaf* [f]
   #?(:clj (vary-meta f assoc :leaf true)
      :glj f))
-
-;; Codepoint membership in a flat [lo0 hi0 lo1 hi1 ...] sorted range
-;; vector, shared by the fused scanners below.
-(defn- in-ranges? [cp ranges n]
-  (loop [i 0]
-    (if (< i n)
-      (if (< cp (nth ranges i))
-        false
-        (or (<= cp (nth ranges (inc i)))
-            (recur (+ i 2))))
-      false)))
 
 ;; Fused nb-ns-plain-in-line(c) scanner: ( s-white* ns-plain-char(c) )*
 ;; as one leaf matcher. safe is the context's ns-plain-safe class,

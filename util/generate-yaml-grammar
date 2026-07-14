@@ -123,7 +123,18 @@ GATE-FIRST =:
   +{'c-ns-tag-property' '[0x21 0x21]'
     'c-ns-anchor-property' '[0x26 0x26]'
     'c-ns-alias-node' '[0x2A 0x2A]'
-    'c-ns-properties' '[0x21 0x21 0x26 0x26]'}
+    'c-ns-properties' '[0x21 0x21 0x26 0x26]'
+    'c-l-block-map-explicit-entry' '[0x3F 0x3F]'
+    'c-l-block-seq-entry' '[0x2D 0x2D]'}
+
+# Rules whose FIRST set sits behind a separation: gated with
+# p/ahead-skip?, which skips blanks and comment lines before the
+# check (a permissive superset of the separation, see the engine
+# comment). s-l+block-scalar can only match when the first content
+# char after its separation is | > (literal/folded) or ! & (node
+# properties).
+GATE-AFTER-SEP =:
+  +{'s-l+block-scalar' '[0x21 0x21 0x26 0x26 0x3E 0x3E 0x7C 0x7C]'}
 
 RULE-REF-RE =: /^(?:b|c|e|l|nb|ns|s)(?:[-+][a-z0-9]+)+$/
 
@@ -257,7 +268,13 @@ defn gen-rule(spec nums comments classes name):
   has-flip =: has-text?(rule-body 'p/flip')
   cacheable =: (setm == '') && has-flip.!
   ranges =: classes && classes.get(name)
-  gate =: GATE-FIRST.get(name)
+  gate-first =: GATE-FIRST.get(name)
+  gate-sep =: GATE-AFTER-SEP.get(name)
+  gate =:
+    cond:
+      gate-first: "(p/ahead? parser $gate-first)"
+      gate-sep: "(p/ahead-skip? parser $gate-sep)"
+      else: nil
   cond:
     name == 'b-break':
       # Fused in the engine: CRLF | CR | LF as one leaf matcher (see
@@ -356,7 +373,7 @@ defn gen-rule(spec nums comments classes name):
             (name* "$rule-name-str"
               (fn ${rule-name-str}-fn [parser]
                 (when DEBUG (debug-rule "$rule-name-str"))
-                (if (p/ahead? parser $gate)
+                (if $gate
                   @body
                   false))
               nil)))
@@ -384,7 +401,7 @@ defn gen-rule(spec nums comments classes name):
             (name* "$rule-name-str"
               (fn ${rule-name-str}-fn $rule-args
                 (when DEBUG (debug-rule "$rule-name-str"$debug-args))
-                (if (p/ahead? parser $gate)
+                (if $gate
                   (or (get @cache [$(args:joins)])
                       (let [body
         $rule-body]
