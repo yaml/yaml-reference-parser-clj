@@ -294,6 +294,36 @@ defn gen-rule(spec nums comments classes name):
       gen-dquo-scan-rule: comment rule-name-str classes 'true'
     name == 'nb-ns-double-in-line':
       gen-dquo-scan-rule: comment rule-name-str classes 'false'
+    name == 's-indent-lt':
+      # Fused indent checks (see p/indent-cmp for why the comparison
+      # collapses to a sign test on n: p/match reads the final
+      # zero-width s-space iteration, so len is always 0).
+      gen-indent-cmp-rule: comment rule-name-str '(pos? n)'
+    name == 's-indent-le':
+      gen-indent-cmp-rule: comment rule-name-str '(not (neg? n))'
+    name == 's-separate-in-line':
+      # Fused separation: s-white+ | start-of-line as one leaf.
+      str: |+
+        ${comment}(def $rule-name-str
+          (let [body (p/sep-in-line nil)]
+            (p/leaf*
+             (name* "$rule-name-str"
+               (fn ${rule-name-str}-fn [parser]
+                 (when DEBUG (debug-rule "$rule-name-str"))
+                 (body parser))
+               nil))))
+    name == 's-l-comments':
+      # Fused comment-block scanner (see p/comments-scan for the
+      # exact s-b-comment/l-comment semantics it preserves).
+      str: |+
+        ${comment}(def $rule-name-str
+          (let [body (p/comments-scan nil [$(flat-ranges(classes.get('nb-char')))])]
+            (p/leaf*
+             (name* "$rule-name-str"
+               (fn ${rule-name-str}-fn [parser]
+                 (when DEBUG (debug-rule "$rule-name-str"))
+                 (body parser))
+               nil))))
     ranges:
       gen-class-rule:
         comment
@@ -356,6 +386,19 @@ defn gen-rule(spec nums comments classes name):
               (when DEBUG (debug-rule "$rule-name-str"$debug-args))
           $rule-body$setm-close)
             nil))
+
+defn gen-indent-cmp-rule(comment name consume):
+  str: |+
+    ${comment}(def $name
+      (let [cache (volatile! {})]
+        (name* "$name"
+          (fn ${name}-fn [parser n]
+            (when DEBUG (debug-rule "$name", n))
+            (or (get @cache [n])
+                (let [body (p/indent-cmp parser $consume)]
+                  (vswap! cache assoc [n] body)
+                  body)))
+          nil)))
 
 defn gen-plain-in-line-rule(comment name classes):
   ns-ranges =: classes.get('ns-char')
@@ -656,10 +699,8 @@ defn gen-group(ctx items kind):
   gen-method-call: group-ctx kind generated*
 
 # Reps over a pure character class fuse into one scanning matcher.
-# Excluded: the live-chain rules (rep frames feed callback chains) and
-# s-indent-lt/le, whose p/match "" invariant depends on the rep frame's
-# final zero-width bookkeeping.
-REP-FUSE-EXCLUDE =: \{'s-indent-lt' 's-indent-le'}
+# Excluded: the live-chain rules (rep frames feed callback chains),
+# except those whitelisted below.
 
 # Live-chain rules whose class reps may fuse anyway, with the rep's
 # own frame name ("rep"/"rep2") passed to chars-rep so the chain
@@ -671,21 +712,12 @@ REP-FUSE-EXCLUDE =: \{'s-indent-lt' 's-indent-le'}
 LIVE-CHAIN-REP-FUSE =:
   \{'l-nb-literal-text' 's-nb-folded-text' 's-nb-spaced-text'}
 
-# Rules whose class reps may fuse THROUGH the s-white/ns-char barrier.
-# The barrier protects the scalar-mode got__s_white/got__ns_char
-# handlers (folded-text :first capture); s-separate-in-line never runs
-# between a folded/spaced line's :first capture and its text-rep
-# callback (those productions are s-indent ns-char/s-white nb-char*,
-# with no separation inside), so its whites are never observed.
-REP-FUSE-BARRIER-OK =: \{'s-separate-in-line'}
-
 defn gen-rep(ctx rule min max):
   rep-num =: swap(ctx.rep-count inc)
-  allow-barrier =: contains?(REP-FUSE-BARRIER-OK ctx.rule-name)
   live-fuse =: contains?(LIVE-CHAIN-REP-FUSE ctx.rule-name)
   ranges =:
     when rep-fusable?(ctx) || live-fuse:
-      class-of(ctx.classes rule allow-barrier)
+      class-of(ctx.classes rule false)
   cond:
     ranges && live-fuse:
       rep-name =:
@@ -702,8 +734,7 @@ defn gen-rep(ctx rule min max):
 
 defn rep-fusable?(ctx):
   ctx.classes.? &&
-  contains?(LIVE-CHAIN-RULES ctx.rule-name).! &&
-  contains?(REP-FUSE-EXCLUDE ctx.rule-name).!
+  contains?(LIVE-CHAIN-RULES ctx.rule-name).!
 
 defn gen-rep-call(ctx rule min max rep-num):
   rep-fn =:

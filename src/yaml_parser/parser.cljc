@@ -54,11 +54,13 @@
     "ns_flow_node" "c_flow_json_node" "ns_flow_yaml_node"
     "ns_flow_content" "c_flow_json_content" "ns_flow_yaml_content"
     "ns_plain" "c_single_quoted" "c_double_quoted"
-    ;; Separation/comment scans, re-parsed at the same position by
-    ;; sibling alternatives in block context. s_separate_lines rather
-    ;; than s_separate: the block/flow c variants all dispatch to
+    ;; Separation scans, re-parsed at the same position by sibling
+    ;; alternatives in block context. s_separate_lines rather than
+    ;; s_separate: the block/flow c variants all dispatch to
     ;; [s_separate_lines n], so one entry serves differing c.
-    "s_separate_lines" "s_l_comments"
+    ;; (s_l_comments left out: fused into p/comments-scan, one leaf
+    ;; call, cheaper than the memo gate.)
+    "s_separate_lines"
     "s_l_flow_in_block"})
 
 ;; Parse state frame. :node is the frame's precomputed receiver
@@ -122,17 +124,17 @@
 
 ;; Frame-shape-sensitive subtrees. set* writes :m/:t into ancestor
 ;; frames positionally and stops at the s_l_block_scalar frame; p/match
-;; scans for the deepest frame with :end set, at three grammar sites
-;; (s_indent_lt, s_indent_le, c_indentation_indicator). Entering these
-;; rules sets :full on the frame (inherited like :doc), which keeps
-;; every descendant on the slow path so the stack shape those readers
-;; see is unchanged.
+;; scans for the deepest frame with :end set, at its one remaining
+;; grammar site (c_indentation_indicator, inside s_l_block_scalar;
+;; s_indent_lt/le are fused into p/indent-cmp and no longer read it).
+;; Entering this rule sets :full on the frame (inherited like :doc),
+;; which keeps every descendant on the slow path so the stack shape
+;; those readers see is unchanged.
 (def ^:private full-frame-roots
-  #{"s_l_block_scalar" "s_indent_lt" "s_indent_le"})
+  #{"s_l_block_scalar"})
 
 ;; Block scalar CONTENT has no set*/match readers (they all live in the
-;; header, fully parsed before content starts), so clear :full there;
-;; the l_empty -> s_indent_lt/le descendants re-set it via the roots.
+;; header, fully parsed before content starts), so clear :full there.
 (def ^:private full-frame-clears
   #{"l_literal_content" "l_folded_content"})
 
@@ -812,6 +814,152 @@
                    :else
                    (finish cur commit)))))))
        "dquo+"))))
+
+;; Fused s-indent(<n) / s-indent(<=n). The spec productions read
+;; s-space{m} with m < n (resp. <= n), but the reference parser's
+;; combinator tree computes m via p/match, which returns the LAST
+;; completed sub-match: the final zero-width failed s-space iteration
+;; that ended the rep. So len is always 0 and the actual, suite-
+;; validated semantics are: when 0 < n (resp. 0 <= n) consume the
+;; whole space run, otherwise consume nothing; always succeed (the
+;; p/may wrapper). consume bakes that comparison in at construction.
+;; No the-end guard is needed: a doc-end marker line never starts
+;; with a space, so the marker can never cut a space run.
+(defn indent-cmp [parser consume]
+  (leaf*
+   (name* "indent-cmp"
+     (fn indent-cmp-fn [p]
+       (when consume
+         (let [input @(:input p)
+               end (long @(:end p))]
+           (loop [i (long @(:pos p))]
+             (if (and (< i end) (= (nth input i) \space))
+               (recur (inc i))
+               (vreset! (:pos p) i)))))
+       true)
+     "indent-cmp")))
+
+;; Fused s-separate-in-line: s-white+ | start-of-line as one leaf.
+(defn sep-in-line [parser]
+  (leaf*
+   (name* "sep+"
+     (fn sep-in-line-fn [p]
+       (let [input @(:input p)
+             end (long @(:end p))
+             pos (long @(:pos p))
+             w (loop [i pos]
+                 (if (and (< i end)
+                          (let [ch (nth input i)]
+                            (or (= ch \space) (= ch \tab))))
+                   (recur (inc i))
+                   (- i pos)))]
+         (cond
+           (pos? w) (do (vreset! (:pos p) (+ pos w)) true)
+           (or (zero? pos)
+               (= (nth input (dec pos)) \newline)) true
+           :else false)))
+     "sep+")))
+
+;; Fused s-l-comments scanner:
+;;   ( s-b-comment | start-of-line ) l-comment*
+;;   s-b-comment ::= ( s-separate-in-line c-nb-comment-text? )? b-comment
+;;   l-comment   ::= s-separate-in-line c-nb-comment-text? b-comment
+;; nb-ranges is the nb-char class for comment text. Semantics mirror
+;; the combinator tree exactly: the optional group in s-b-comment
+;; commits once the separation matches (rep(0,1) does not retry with
+;; zero iterations, so separation followed by neither comment nor
+;; break fails the whole alternative); l-comment* stops at the first
+;; failure or at a zero-width success (EOF after the final newline,
+;; the rep's no-progress guard). The doc-end-marker guard applies at
+;; each line position exactly where the original leaf matchers ran
+;; the-end: a marker line fails both the break and the comment
+;; matchers but still satisfies start-of-line, matching the original
+;; backtrack. No rule in this subtree has receiver callbacks; the
+;; whites cross the s-white FUSE-BARRIER on the same scalar-mode
+;; argument as the other fused scanners.
+(defn comments-scan [parser nb-ranges]
+  (let [nn (count nb-ranges)]
+    (leaf*
+     (name* "comments+"
+       (fn comments-scan-fn [p]
+         (let [input @(:input p)
+               end (long @(:end p))
+               doc (:doc (state-curr p))
+               line-start? (fn [pos]
+                             (or (zero? pos)
+                                 (= (nth input (dec pos)) \newline)))
+               marker? (fn [pos]
+                         (and doc (line-start? pos)
+                              #?(:clj (doc-end-marker? input pos)
+                                 :glj (re-find #"^(?:---|\.\.\.)(\s|$)"
+                                               (subs input pos)))))
+               ;; s-separate-in-line: whites+ (guarded by the marker
+               ;; check at entry, like the original per-char leaves),
+               ;; or zero-width at a line start. Returns end pos or
+               ;; nil; a zero-width success returns pos itself.
+               sep-end (fn [pos]
+                         (let [w (if (marker? pos)
+                                   0
+                                   (loop [i pos]
+                                     (if (and (< i end)
+                                              (let [ch (nth input i)]
+                                                (or (= ch \space)
+                                                    (= ch \tab))))
+                                       (recur (inc i))
+                                       (- i pos))))]
+                           (when (or (pos? w) (line-start? pos))
+                             (+ pos w))))
+               ;; optional c-nb-comment-text; always returns a pos
+               text-end (fn [pos]
+                          (if (and (< pos end)
+                                   (= (nth input pos) \#)
+                                   (not (marker? pos)))
+                            (loop [i (inc pos)]
+                              (if (< i end)
+                                (let [cp #?(:clj (Character/codePointAt
+                                                  ^String input (int i))
+                                            :glj (int (nth input i)))]
+                                  (if (in-ranges? cp nb-ranges nn)
+                                    (recur (+ i #?(:clj (Character/charCount cp)
+                                                   :glj 1)))
+                                    i))
+                                i))
+                            pos))
+               ;; b-comment: b-break or end of input; nil on failure
+               brk-end (fn [pos]
+                         (cond
+                           (>= pos end) pos
+                           (marker? pos) nil
+                           (= (nth input pos) \newline) (inc pos)
+                           (= (nth input pos) \return)
+                           (if (and (< (inc pos) end)
+                                    (= (nth input (inc pos)) \newline))
+                             (+ pos 2)
+                             (inc pos))
+                           :else nil))
+               ;; l-comment: separation required, then text?, then
+               ;; break/EOF; all-or-nothing
+               comment-line (fn [pos]
+                              (when-let [s (sep-end pos)]
+                                (brk-end (text-end s))))
+               pos0 (long @(:pos p))
+               ;; s-b-comment: the (separation text?) group is
+               ;; optional but commits once the separation matches
+               ;; (rep(0,1) takes the iteration and never retries
+               ;; with zero), so a bare break at pos0 is only tried
+               ;; when the separation itself failed.
+               p1 (or (if-let [s (sep-end pos0)]
+                        (brk-end (text-end s))
+                        (brk-end pos0))
+                      (when (line-start? pos0) pos0))]
+           (when p1
+             (loop [pos (long p1)]
+               (let [r (comment-line pos)]
+                 (if (and r (> (long r) pos))
+                   (recur (long r))
+                   (do (vreset! (:pos p) pos)
+                       true)))))))
+       "comments+"))))
 
 ;; Fused b-break matcher: (b-carriage-return b-line-feed) |
 ;; b-carriage-return | b-line-feed as a single leaf. Equivalent to the

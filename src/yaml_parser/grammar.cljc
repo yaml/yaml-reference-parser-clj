@@ -1091,25 +1091,11 @@
       (fn s_indent_lt-fn [parser n]
         (when DEBUG (debug-rule "s_indent_lt", n))
         (or (get @cache [n])
-            (let [body
-  (p/may parser
-     (p/all parser
-       (p/rep parser
-         0,
-        nil,
-        s_space
-      ),
-      (p/lt parser
-         (p/len parser
-           (p/match parser)
-        ),
-        n
-      )
-    )
-  )]
+            (let [body (p/indent-cmp parser (pos? n))]
               (vswap! cache assoc [n] body)
               body)))
       nil)))
+
 ;; [065]
 ;; s-indent(<=n) ::=
 ;;   s-space{m} <where_m_<=_n>
@@ -1119,40 +1105,22 @@
       (fn s_indent_le-fn [parser n]
         (when DEBUG (debug-rule "s_indent_le", n))
         (or (get @cache [n])
-            (let [body
-  (p/may parser
-     (p/all parser
-       (p/rep parser
-         0,
-        nil,
-        s_space
-      ),
-      (p/le parser
-         (p/len parser
-           (p/match parser)
-        ),
-        n
-      )
-    )
-  )]
+            (let [body (p/indent-cmp parser (not (neg? n)))]
               (vswap! cache assoc [n] body)
               body)))
       nil)))
+
 ;; [066]
 ;; s-separate-in-line ::=
 ;;   s-white+ | <start_of_line>
 (def s_separate_in_line
-  (let [body (delay
-               (let [parser nil]
-    (p/any parser
-     (p/chars-rep parser 1, nil, [0x9 0x9 0x20 0x20]),
-    (p/start-of-line parser)
-  )))]
-    (name* "s_separate_in_line"
-      (fn s_separate_in_line-fn [parser]
-        (when DEBUG (debug-rule "s_separate_in_line"))
-        @body)
-      nil)))
+  (let [body (p/sep-in-line nil)]
+    (p/leaf*
+     (name* "s_separate_in_line"
+       (fn s_separate_in_line-fn [parser]
+         (when DEBUG (debug-rule "s_separate_in_line"))
+         (body parser))
+       nil))))
 ;; [067]
 ;; s-line-prefix(n,c) ::=
 ;;   ( c = block-out => s-block-line-prefix(n) )
@@ -1394,24 +1362,13 @@
 ;;   ( s-b-comment | <start_of_line> )
 ;;   l-comment*
 (def s_l_comments
-  (let [body (delay
-               (let [parser nil]
-    (p/all parser
-     (p/any parser
-       s_b_comment,
-      (p/start-of-line parser)
-    ),
-    (p/rep parser
-       0,
-      nil,
-      l_comment
-    )
-  )))]
-    (name* "s_l_comments"
-      (fn s_l_comments-fn [parser]
-        (when DEBUG (debug-rule "s_l_comments"))
-        @body)
-      nil)))
+  (let [body (p/comments-scan nil [0x9 0x9 0x20 0x7E 0x85 0x85 0xA0 0xD7FF 0xE000 0xFEFE 0xFF00 0xFFFD 0x10000 0x10FFFF])]
+    (p/leaf*
+     (name* "s_l_comments"
+       (fn s_l_comments-fn [parser]
+         (when DEBUG (debug-rule "s_l_comments"))
+         (body parser))
+       nil))))
 ;; [080]
 ;; s-separate(n,c) ::=
 ;;   ( c = block-out => s-separate-lines(n) )
