@@ -670,6 +670,59 @@
                  (recur (+ q w)))))))
        "plain+"))))
 
+;; Fused single-quoted content scanner, covering nb-single-one-line
+;; (keep true: nb-single-char*) and nb-ns-single-in-line (keep false:
+;; ( s-white* ns-single-char )*, trailing whites dropped) as one leaf
+;; matcher. ranges is the nb-single-char class (nb-json minus "'",
+;; whites included); a "''" pair is one quoted quote and commits like
+;; any non-white char. Guards mirror the original leaves: end/marker
+;; check per position, and the doubled-quote lookahead needs only the
+;; end bound (its position is never a line start, the previous char
+;; is "'"). Always succeeds (both reps are min 0), leaving pos at the
+;; last committed match.
+(defn squo-scan [parser ranges keep]
+  (let [n (count ranges)]
+    (leaf*
+     (name* "squo+"
+       (fn squo-scan-fn [p]
+         (let [input @(:input p)
+               end (long @(:end p))
+               doc (:doc (state-curr p))
+               finish (fn [cur commit]
+                        (vreset! (:pos p) (if keep cur commit))
+                        true)]
+           (loop [commit (long @(:pos p))
+                  cur (long @(:pos p))]
+             (if (or (>= cur end)
+                     (and doc
+                          (or (zero? cur)
+                              (= (nth input (dec cur)) \newline))
+                          #?(:clj (doc-end-marker? input cur)
+                             :glj (re-find #"^(?:---|\.\.\.)(\s|$)"
+                                           (subs input cur)))))
+               (finish cur commit)
+               (let [cp #?(:clj (Character/codePointAt
+                                 ^String input (int cur))
+                           :glj (int (nth input cur)))]
+                 (cond
+                   (= cp 0x27)
+                   (if (and (< (inc cur) end)
+                            (= (nth input (inc cur)) \'))
+                     (recur (+ cur 2) (+ cur 2))
+                     (finish cur commit))
+
+                   (in-ranges? cp ranges n)
+                   (let [nxt (+ cur #?(:clj (Character/charCount cp)
+                                       :glj 1))]
+                     (if (or keep
+                             (not (or (= cp 0x20) (= cp 0x9))))
+                       (recur nxt nxt)
+                       (recur commit nxt)))
+
+                   :else
+                   (finish cur commit)))))))
+       "squo+"))))
+
 ;; Fused b-break matcher: (b-carriage-return b-line-feed) |
 ;; b-carriage-return | b-line-feed as a single leaf. Equivalent to the
 ;; spec's combinator tree including its per-position the-end guards:

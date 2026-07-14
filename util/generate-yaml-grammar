@@ -278,6 +278,14 @@ defn gen-rule(spec nums comments classes name):
       # ns-plain-safe-out = ns-char; ns-plain-safe-in = ns-char minus
       # c-flow-indicator; context mapping per ns-plain-safe [127].
       gen-plain-in-line-rule: comment rule-name-str classes
+    name == 'nb-single-one-line':
+      # Fused single-quoted line scans (see p/squo-scan): keep true =
+      # nb-single-char*, keep false = ( s-white* ns-single-char )*
+      # with trailing whites dropped. No rule in either subtree has
+      # receiver callbacks.
+      gen-squo-scan-rule: comment rule-name-str classes 'true'
+    name == 'nb-ns-single-in-line':
+      gen-squo-scan-rule: comment rule-name-str classes 'false'
     ranges:
       gen-class-rule:
         comment
@@ -358,6 +366,19 @@ defn gen-plain-in-line-rule(comment name classes):
               ("flow-in" "flow-key") in-body
               nil))
           nil)))
+
+defn gen-squo-scan-rule(comment name classes keep):
+  items =: +['nb-json' 'x27']
+  ranges =: class-diff(classes items true)
+  str: |+
+    ${comment}(def $name
+      (let [body (p/squo-scan nil [$(flat-ranges(ranges))] $keep)]
+        (p/leaf*
+         (name* "$name"
+           (fn ${name}-fn [parser]
+             (when DEBUG (debug-rule "$name"))
+             (body parser))
+           nil))))
 
 # Class rules build their fused matcher once and invoke it directly.
 # Non-barrier class rules are additionally leaf-marked: call may skip

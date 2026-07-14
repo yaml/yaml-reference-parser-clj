@@ -2256,36 +2256,26 @@
 ;; nb-single-one-line ::=
 ;;   nb-single-char*
 (def nb_single_one_line
-  (let [body (delay
-               (let [parser nil]
-    (p/rep2 parser 0, nil, nb_single_char)))]
-    (name* "nb_single_one_line"
-      (fn nb_single_one_line-fn [parser]
-        (when DEBUG (debug-rule "nb_single_one_line"))
-        @body)
-      nil)))
+  (let [body (p/squo-scan nil [0x9 0x9 0x20 0x26 0x28 0x10FFFF] true)]
+    (p/leaf*
+     (name* "nb_single_one_line"
+       (fn nb_single_one_line-fn [parser]
+         (when DEBUG (debug-rule "nb_single_one_line"))
+         (body parser))
+       nil))))
+
 ;; [123]
 ;; nb-ns-single-in-line ::=
 ;;   ( s-white* ns-single-char )*
 (def nb_ns_single_in_line
-  (let [body (delay
-               (let [parser nil]
-    (p/rep2 parser
-     0,
-    nil,
-    (p/all parser
-       (p/rep parser
-         0,
-        nil,
-        s_white
-      ),
-      ns_single_char
-    ))))]
-    (name* "nb_ns_single_in_line"
-      (fn nb_ns_single_in_line-fn [parser]
-        (when DEBUG (debug-rule "nb_ns_single_in_line"))
-        @body)
-      nil)))
+  (let [body (p/squo-scan nil [0x9 0x9 0x20 0x26 0x28 0x10FFFF] false)]
+    (p/leaf*
+     (name* "nb_ns_single_in_line"
+       (fn nb_ns_single_in_line-fn [parser]
+         (when DEBUG (debug-rule "nb_ns_single_in_line"))
+         (body parser))
+       nil))))
+
 ;; [124]
 ;; s-single-next-line(n) ::=
 ;;   s-flow-folded(n)
