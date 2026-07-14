@@ -2018,14 +2018,16 @@
 ;; nb-double-one-line ::=
 ;;   nb-double-char*
 (def nb_double_one_line
-  (let [body (delay
-               (let [parser nil]
-    (p/rep2 parser 0, nil, nb_double_char)))]
-    (name* "nb_double_one_line"
-      (fn nb_double_one_line-fn [parser]
-        (when DEBUG (debug-rule "nb_double_one_line"))
-        @body)
-      nil)))
+  (let [body (p/dquo-scan nil [0x9 0x9 0x20 0x21 0x23 0x5B 0x5D 0x10FFFF]
+                          [0x9 0x9 0x20 0x20 0x22 0x22 0x2F 0x30 0x4C 0x4C 0x4E 0x4E 0x50 0x50 0x5C 0x5C 0x5F 0x5F 0x61 0x62 0x65 0x66 0x6E 0x6E 0x72 0x72 0x74 0x74 0x76 0x76]
+                          [0x30 0x39 0x41 0x46 0x61 0x66] true)]
+    (p/leaf*
+     (name* "nb_double_one_line"
+       (fn nb_double_one_line-fn [parser]
+         (when DEBUG (debug-rule "nb_double_one_line"))
+         (body parser))
+       nil))))
+
 ;; [112]
 ;; s-double-escaped(n) ::=
 ;;   s-white* '\\'
@@ -2079,24 +2081,16 @@
 ;; nb-ns-double-in-line ::=
 ;;   ( s-white* ns-double-char )*
 (def nb_ns_double_in_line
-  (let [body (delay
-               (let [parser nil]
-    (p/rep2 parser
-     0,
-    nil,
-    (p/all parser
-       (p/rep parser
-         0,
-        nil,
-        s_white
-      ),
-      ns_double_char
-    ))))]
-    (name* "nb_ns_double_in_line"
-      (fn nb_ns_double_in_line-fn [parser]
-        (when DEBUG (debug-rule "nb_ns_double_in_line"))
-        @body)
-      nil)))
+  (let [body (p/dquo-scan nil [0x9 0x9 0x20 0x21 0x23 0x5B 0x5D 0x10FFFF]
+                          [0x9 0x9 0x20 0x20 0x22 0x22 0x2F 0x30 0x4C 0x4C 0x4E 0x4E 0x50 0x50 0x5C 0x5C 0x5F 0x5F 0x61 0x62 0x65 0x66 0x6E 0x6E 0x72 0x72 0x74 0x74 0x76 0x76]
+                          [0x30 0x39 0x41 0x46 0x61 0x66] false)]
+    (p/leaf*
+     (name* "nb_ns_double_in_line"
+       (fn nb_ns_double_in_line-fn [parser]
+         (when DEBUG (debug-rule "nb_ns_double_in_line"))
+         (body parser))
+       nil))))
+
 ;; [115]
 ;; s-double-next-line(n) ::=
 ;;   s-double-break(n)

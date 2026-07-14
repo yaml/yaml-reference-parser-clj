@@ -723,6 +723,96 @@
                    (finish cur commit)))))))
        "squo+"))))
 
+;; True when the k chars at from..from+k-1 are all inside ranges and
+;; in bounds. Used for the \x/\u/\U hex runs in dquo-scan; hex digits
+;; are BMP so per-index codePointAt is exact.
+(defn- range-run? [input from k end ranges n]
+  (loop [i 0]
+    (if (= i k)
+      true
+      (let [pos (+ from i)]
+        (if (and (< pos end)
+                 (in-ranges? #?(:clj (Character/codePointAt
+                                      ^String input (int pos))
+                                :glj (int (nth input pos)))
+                             ranges n))
+          (recur (inc i))
+          false)))))
+
+;; Fused double-quoted content scanner, covering nb-double-one-line
+;; (keep true: nb-double-char*) and nb-ns-double-in-line (keep false:
+;; ( s-white* ns-double-char )*, trailing whites dropped). ranges is
+;; the nb-double-char class (nb-json minus '\\' and '"'), esc the
+;; single-char escape set, hex the ns-hex-digit class; all computed at
+;; generation time. At '\\' the escape is validated inline: one
+;; single-set char, or x/u/U with exactly 2/4/8 hex digits; on an
+;; invalid escape the scan ends with the backslash unconsumed, exactly
+;; where the original rep stopped (s-double-escaped then reclaims a
+;; trailing '\\' before a line break in multi-line context). Escape
+;; interior positions are never line starts (previous char is '\\',
+;; x/u/U, or a hex digit), so only end-of-stream bounds are checked
+;; there; the per-position end/marker guard runs where the original
+;; leaves ran theirs. Escapes count as non-white chars and commit any
+;; pending whites. Always succeeds (both reps are min 0).
+(defn dquo-scan [parser ranges esc hex keep]
+  (let [n (count ranges)
+        en (count esc)
+        hn (count hex)]
+    (leaf*
+     (name* "dquo+"
+       (fn dquo-scan-fn [p]
+         (let [input @(:input p)
+               end (long @(:end p))
+               doc (:doc (state-curr p))
+               finish (fn [cur commit]
+                        (vreset! (:pos p) (if keep cur commit))
+                        true)]
+           (loop [commit (long @(:pos p))
+                  cur (long @(:pos p))]
+             (if (or (>= cur end)
+                     (and doc
+                          (or (zero? cur)
+                              (= (nth input (dec cur)) \newline))
+                          #?(:clj (doc-end-marker? input cur)
+                             :glj (re-find #"^(?:---|\.\.\.)(\s|$)"
+                                           (subs input cur)))))
+               (finish cur commit)
+               (let [cp #?(:clj (Character/codePointAt
+                                 ^String input (int cur))
+                           :glj (int (nth input cur)))]
+                 (cond
+                   (= cp 0x5C)
+                   (let [q (inc cur)
+                         c2 (when (< q end)
+                              #?(:clj (Character/codePointAt
+                                       ^String input (int q))
+                                 :glj (int (nth input q))))
+                         w (cond
+                             (nil? c2) 0
+                             (in-ranges? c2 esc en) 2
+                             (and (= c2 0x78)
+                                  (range-run? input (inc q) 2 end hex hn)) 4
+                             (and (= c2 0x75)
+                                  (range-run? input (inc q) 4 end hex hn)) 6
+                             (and (= c2 0x55)
+                                  (range-run? input (inc q) 8 end hex hn)) 10
+                             :else 0)]
+                     (if (zero? w)
+                       (finish cur commit)
+                       (recur (+ cur w) (+ cur w))))
+
+                   (in-ranges? cp ranges n)
+                   (let [nxt (+ cur #?(:clj (Character/charCount cp)
+                                       :glj 1))]
+                     (if (or keep
+                             (not (or (= cp 0x20) (= cp 0x9))))
+                       (recur nxt nxt)
+                       (recur commit nxt)))
+
+                   :else
+                   (finish cur commit)))))))
+       "dquo+"))))
+
 ;; Fused b-break matcher: (b-carriage-return b-line-feed) |
 ;; b-carriage-return | b-line-feed as a single leaf. Equivalent to the
 ;; spec's combinator tree including its per-position the-end guards:

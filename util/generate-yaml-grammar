@@ -286,6 +286,14 @@ defn gen-rule(spec nums comments classes name):
       gen-squo-scan-rule: comment rule-name-str classes 'true'
     name == 'nb-ns-single-in-line':
       gen-squo-scan-rule: comment rule-name-str classes 'false'
+    name == 'nb-double-one-line':
+      # Fused double-quoted line scans (see p/dquo-scan): same shapes
+      # as the single-quoted pair, with c-ns-esc-char validated
+      # inline from the escape and hex classes. No rule in either
+      # subtree has receiver callbacks.
+      gen-dquo-scan-rule: comment rule-name-str classes 'true'
+    name == 'nb-ns-double-in-line':
+      gen-dquo-scan-rule: comment rule-name-str classes 'false'
     ranges:
       gen-class-rule:
         comment
@@ -373,6 +381,35 @@ defn gen-squo-scan-rule(comment name classes keep):
   str: |+
     ${comment}(def $name
       (let [body (p/squo-scan nil [$(flat-ranges(ranges))] $keep)]
+        (p/leaf*
+         (name* "$name"
+           (fn ${name}-fn [parser]
+             (when DEBUG (debug-rule "$name"))
+             (body parser))
+           nil))))
+
+# The single-char escape alternatives of c-ns-esc-char [062], in spec
+# order (they are disjoint single-char classes, so order is not
+# significant); x/u/U hex escapes are handled structurally by
+# p/dquo-scan.
+ESC-CHAR-RULES =:
+  +['ns-esc-null' 'ns-esc-bell' 'ns-esc-backspace'
+    'ns-esc-horizontal-tab' 'ns-esc-line-feed' 'ns-esc-vertical-tab'
+    'ns-esc-form-feed' 'ns-esc-carriage-return' 'ns-esc-escape'
+    'ns-esc-space' 'ns-esc-double-quote' 'ns-esc-slash'
+    'ns-esc-backslash' 'ns-esc-next-line' 'ns-esc-non-breaking-space'
+    'ns-esc-line-separator' 'ns-esc-paragraph-separator']
+
+defn gen-dquo-scan-rule(comment name classes keep):
+  items =: +['nb-json' 'x5C' 'x22']
+  ranges =: class-diff(classes items true)
+  esc =: class-union(classes ESC-CHAR-RULES true)
+  hex =: classes.get('ns-hex-digit')
+  str: |+
+    ${comment}(def $name
+      (let [body (p/dquo-scan nil [$(flat-ranges(ranges))]
+                              [$(flat-ranges(esc))]
+                              [$(flat-ranges(hex))] $keep)]
         (p/leaf*
          (name* "$name"
            (fn ${name}-fn [parser]
