@@ -2502,26 +2502,17 @@
 ;;   ( s-white*
 ;;   ns-plain-char(c) )*
 (def nb_ns_plain_in_line
-  (let [cache (volatile! {})]
+  (let [out-body (p/plain-in-line nil [0x21 0x7E 0x85 0x85 0xA0 0xD7FF 0xE000 0xFEFE 0xFF00 0xFFFD 0x10000 0x10FFFF] [0x21 0x7E 0x85 0x85 0xA0 0xD7FF 0xE000 0xFEFE 0xFF00 0xFFFD 0x10000 0x10FFFF])
+        in-body (p/plain-in-line nil [0x21 0x2B 0x2D 0x5A 0x5C 0x5C 0x5E 0x7A 0x7C 0x7C 0x7E 0x7E 0x85 0x85 0xA0 0xD7FF 0xE000 0xFEFE 0xFF00 0xFFFD 0x10000 0x10FFFF] [0x21 0x7E 0x85 0x85 0xA0 0xD7FF 0xE000 0xFEFE 0xFF00 0xFFFD 0x10000 0x10FFFF])]
     (name* "nb_ns_plain_in_line"
       (fn nb_ns_plain_in_line-fn [parser c]
         (when DEBUG (debug-rule "nb_ns_plain_in_line", c))
-        (or (get @cache [c])
-            (let [body
-  (p/rep2 parser
-     0,
-    nil,
-    (p/all parser
-       (p/rep parser
-         0,
-        nil,
-        s_white
-      ),
-      [ns_plain_char, c]
-    ))]
-              (vswap! cache assoc [c] body)
-              body)))
+        (case c
+          ("flow-out" "block-key") out-body
+          ("flow-in" "flow-key") in-body
+          nil))
       nil)))
+
 ;; [133]
 ;; ns-plain-one-line(c) ::=
 ;;   ns-plain-first(c)

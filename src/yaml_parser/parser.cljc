@@ -580,6 +580,96 @@
   #?(:clj (vary-meta f assoc :leaf true)
      :glj f))
 
+;; Codepoint membership in a flat [lo0 hi0 lo1 hi1 ...] sorted range
+;; vector, shared by the fused scanners below.
+(defn- in-ranges? [cp ranges n]
+  (loop [i 0]
+    (if (< i n)
+      (if (< cp (nth ranges i))
+        false
+        (or (<= cp (nth ranges (inc i)))
+            (recur (+ i 2))))
+      false)))
+
+;; Fused nb-ns-plain-in-line(c) scanner: ( s-white* ns-plain-char(c) )*
+;; as one leaf matcher. safe is the context's ns-plain-safe class,
+;; ns-ranges the ns-char class (for the '#' lookbehind); both computed
+;; at generation time. Semantics mirror the combinator tree exactly:
+;; whites (SP/TAB) are consumed greedily per iteration and dropped
+;; when no plain char follows (the rep2/all backtrack); a plain char
+;; is safe-minus-':'/'#', or '#' preceded by an ns-char (codePointAt
+;; on the preceding index, matching the chk('<=') quirk for astral
+;; chars), or ':' followed by a safe char; the doc-end-marker guard
+;; runs at the would-be plain-char position, where the original's
+;; leaf matchers would have hit their the-end guard (whites need no
+;; guard: mid-line positions are never line starts, and a marker line
+;; makes the iteration fail and backtrack identically). Fusing
+;; s-white/ns-char references is sound here despite FUSE-BARRIER:
+;; their callbacks are scalar-mode-only (receiver.cljc
+;; scalar-mode-rules) and plain scalars cannot occur inside block
+;; scalar content, so those callbacks are always pruned during this
+;; scan.
+(defn plain-in-line [parser safe ns-ranges]
+  (let [sn (count safe)
+        nn (count ns-ranges)]
+    (leaf*
+     (name* "plain+"
+       (fn plain-in-line-fn [p]
+         (let [input @(:input p)
+               end (long @(:end p))
+               doc (:doc (state-curr p))]
+           (loop [pos (long @(:pos p))]
+             (let [q (loop [i pos]
+                       (if (< i end)
+                         (let [ch (nth input i)]
+                           (if (or (= ch \space) (= ch \tab))
+                             (recur (inc i))
+                             i))
+                         i))
+                   w (if (or (>= q end)
+                             (and doc
+                                  (or (zero? q)
+                                      (= (nth input (dec q)) \newline))
+                                  #?(:clj (doc-end-marker? input q)
+                                     :glj (re-find #"^(?:---|\.\.\.)(\s|$)"
+                                                   (subs input q)))))
+                       0
+                       (let [cp #?(:clj (Character/codePointAt
+                                         ^String input (int q))
+                                   :glj (int (nth input q)))]
+                         (cond
+                           (and (in-ranges? cp safe sn)
+                                (not= cp 0x3A)
+                                (not= cp 0x23))
+                           #?(:clj (Character/charCount cp) :glj 1)
+
+                           (= cp 0x23)
+                           (if (and (pos? q)
+                                    (in-ranges?
+                                     #?(:clj (Character/codePointAt
+                                              ^String input (int (dec q)))
+                                        :glj (int (nth input (dec q))))
+                                     ns-ranges nn))
+                             1
+                             0)
+
+                           (= cp 0x3A)
+                           (if (and (< (inc q) end)
+                                    (in-ranges?
+                                     #?(:clj (Character/codePointAt
+                                              ^String input (int (inc q)))
+                                        :glj (int (nth input (inc q))))
+                                     safe sn))
+                             1
+                             0)
+
+                           :else 0)))]
+               (if (zero? w)
+                 (do (vreset! (:pos p) pos)
+                     true)
+                 (recur (+ q w)))))))
+       "plain+"))))
+
 ;; Fused b-break matcher: (b-carriage-return b-line-feed) |
 ;; b-carriage-return | b-line-feed as a single leaf. Equivalent to the
 ;; spec's combinator tree including its per-position the-end guards:

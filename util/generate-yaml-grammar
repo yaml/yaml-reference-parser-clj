@@ -271,6 +271,13 @@ defn gen-rule(spec nums comments classes name):
                  (when DEBUG (debug-rule "$rule-name-str"))
                  (body parser))
                nil))))
+    name == 'nb-ns-plain-in-line':
+      # Fused in the engine: the ( s-white* ns-plain-char(c) )* line
+      # scan as one leaf matcher per safe-class (see p/plain-in-line
+      # for the semantics and the FUSE-BARRIER soundness argument).
+      # ns-plain-safe-out = ns-char; ns-plain-safe-in = ns-char minus
+      # c-flow-indicator; context mapping per ns-plain-safe [127].
+      gen-plain-in-line-rule: comment rule-name-str classes
     ranges:
       gen-class-rule:
         comment
@@ -333,6 +340,24 @@ defn gen-rule(spec nums comments classes name):
               (when DEBUG (debug-rule "$rule-name-str"$debug-args))
           $rule-body$setm-close)
             nil))
+
+defn gen-plain-in-line-rule(comment name classes):
+  ns-ranges =: classes.get('ns-char')
+  in-items =: +['ns-char' 'c-flow-indicator']
+  safe-in =: class-diff(classes in-items true)
+  ns-flat =: flat-ranges(ns-ranges)
+  str: |+
+    ${comment}(def $name
+      (let [out-body (p/plain-in-line nil [$ns-flat] [$ns-flat])
+            in-body (p/plain-in-line nil [$(flat-ranges(safe-in))] [$ns-flat])]
+        (name* "$name"
+          (fn ${name}-fn [parser c]
+            (when DEBUG (debug-rule "$name", c))
+            (case c
+              ("flow-out" "block-key") out-body
+              ("flow-in" "flow-key") in-body
+              nil))
+          nil)))
 
 # Class rules build their fused matcher once and invoke it directly.
 # Non-barrier class rules are additionally leaf-marked: call may skip
