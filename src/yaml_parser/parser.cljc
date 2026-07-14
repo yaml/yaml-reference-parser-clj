@@ -1,4 +1,5 @@
 (ns yaml-parser.parser
+  (:refer-clojure :exclude [chars])
   (:require [clojure.string :as str]
             [yaml-parser.prelude :refer :all]))
 
