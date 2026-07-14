@@ -58,6 +58,14 @@
        "anchor: &a value\n"
        "alias: *a\n"))
 
+(defn json-like [entries]
+  ;; JSON-as-YAML: block mapping of double-quoted strings with
+  ;; escapes, the shape of config/API payloads
+  (str/join
+   (for [i (range entries)]
+     (str "\"key-" i "\": \"value \\\"quoted\\\" text\\tnumber " i
+          " and a longer tail of words\"\n"))))
+
 (def clang-yml
   ;; Real-world fixture: rapidyaml's clang.yml GitHub workflow (~48KB
   ;; of block mappings, sequences and scalars)
@@ -70,6 +78,7 @@
    ["block-deep" (block-deep 8 12) 1]
    ["scalars" (scalars-doc 40) 1]
    ["mixed-small" mixed-small 50]
+   ["json-like" (json-like 30) 1]
    ["clang-yml" clang-yml 1]])
 
 (defn time-one [text iters]
